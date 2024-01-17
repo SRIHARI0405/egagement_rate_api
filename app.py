@@ -29,7 +29,6 @@ def calculate_engagement_rate(username, last_n_posts=10):
 
         posts = cl.user_medias(user_id)
         total_posts = len(posts)
-        print(total_posts)
 
         if total_posts == 0:
             return 0  
