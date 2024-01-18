@@ -1,4 +1,4 @@
-import time
+import asyncio
 from flask import Flask, jsonify, Response, render_template
 import json
 from instagrapi import Client
@@ -18,7 +18,8 @@ try:
     cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
 except Exception as e:
     print(f"Instagram login failed: {e}")
-def calculate_engagement_rate(username, last_n_posts=10):
+
+async def calculate_engagement_rate(username, last_n_posts=10):
     try:
         user_id = cl.user_id_from_username(username)
         user_info = cl.user_info_by_username(username)
@@ -27,86 +28,58 @@ def calculate_engagement_rate(username, last_n_posts=10):
         if followers_count == 0:
             return None
 
-        posts = cl.user_medias(user_id)
+        posts = cl.user_medias(user_id, amount=last_n_posts)
         total_posts = len(posts)
 
         if total_posts == 0:
-            return 0  
+            return 0
 
-        if total_posts > last_n_posts:
-            posts_to_consider = posts[:last_n_posts]  
-        else:
-            posts_to_consider = posts
-
-        total_likes = sum(post.like_count for post in posts_to_consider)
-        total_comments = sum(post.comment_count for post in posts_to_consider)
+        total_likes = sum(post.like_count for post in posts)
+        total_comments = sum(post.comment_count for post in posts)
         total_interactions = total_likes + total_comments
 
         if total_interactions == 0:
-            return 0  
+            return 0
 
-        engagement_rate = (total_interactions / len(posts_to_consider)) / followers_count * 100
+        engagement_rate = (total_interactions / total_posts) / followers_count * 100
         return engagement_rate
 
     except Exception as e:
         print(f"An error occurred while calculating engagement rate: {e}")
         return None
 
-
-
+async def get_profile(username):
+    try:
+        engagement_rate = await calculate_engagement_rate(username)
+        if engagement_rate is not None:
+            response = {
+                'success': True,
+                'message': 'Data retrieved successfully',
+                'username': username,
+                'engagement_rate': round(engagement_rate, 2) if isinstance(engagement_rate, (float, int)) else None
+            }
+            return jsonify(response)
+        else:
+            response = {
+                'success': False,
+                'message': 'User not found or error occurred',
+                'data': None
+            }
+            return jsonify(response)
+    except Exception as e:
+        response = {
+            'success': False,
+            'message': f"An error occurred: {e}",
+            'data': None
+        }
+        return jsonify(response)
 
 @app.route('/engagement_rate/<username>')
-def get_profile(username):
-    max_retries = 3
-    retry_delay = 5
-
-    for retry_number in range(1, max_retries + 1):
-        try:
-            engagement_rate = calculate_engagement_rate(username)
-            if engagement_rate is not None:
-                response = {
-                    'success': True,
-                    'message': 'Data retrieved successfully',
-                    'username': username,
-                    'engagement_rate': round(engagement_rate, 2)
-                }
-                json_data = json.dumps(response, ensure_ascii=False)
-                return Response(json_data, content_type='application/json; charset=utf-8')
-            else:
-                response = {
-                    'success': False,
-                    'message': 'User not found',
-                    'data': None
-                }
-                return jsonify(response)
-        except Exception as e:
-            if "404 Client Error: Not Found" in str(e):
-                response = {
-                    'success': False,
-                    'message': 'User not found',
-                    'data': None
-                }
-                return jsonify(response)
-            elif "429" in str(e):
-                print(f"Rate limit exceeded. Retrying in {retry_delay} seconds (Retry {retry_number}/{max_retries}).")
-                time.sleep(retry_delay)
-            else:
-                response = {
-                    'success': False,
-                    'message': f"{e}",
-                    'data': None
-                }
-                return jsonify(response)
-
-    response = {
-        'success': False,
-        'message': 'Max retries reached. Unable to fetch profile.',
-        'data': None
-    }
-    return jsonify(response)
+def get_profile_route(username):
+    return asyncio.run(get_profile(username))
 
 if __name__ == '__main__':
     try:
-        app.run(debug= False)
+        app.run(debug = False)
     except Exception as e:
         print(f"An error occurred: {e}")
