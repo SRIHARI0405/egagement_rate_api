@@ -62,7 +62,7 @@ async def get_profile(username):
         else:
             response = {
                 'success': False,
-                'message': 'User not found or error occurred',
+                'message': 'User not found',
                 'data': None
             }
             return jsonify(response)
