@@ -19,7 +19,7 @@ try:
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
-def get_average_likes(username):
+async def get_average_likes(username):
     user_id = cl.user_id_from_username(username)
     posts = cl.user_medias(user_id)
 
@@ -69,7 +69,7 @@ async def get_profile(username):
     try:
         user_info = cl.user_info_by_username(username)
         engagement_rate = await calculate_engagement_rate(username)
-        average_likes = get_average_likes(username)
+        average_likes = await get_average_likes(username)
 
         if engagement_rate is not None and average_likes is not None:
             response = {
@@ -78,7 +78,7 @@ async def get_profile(username):
                 'username': username,
                 'engagement_rate': round(engagement_rate, 2) if isinstance(engagement_rate, (float, int)) else None,
                 'followers': user_info.follower_count,
-                'average_likes': format_likes(average_likes) 
+                'average_likes': format_likes(average_likes) if isinstance(engagement_rate, (float, int)) else None 
             }
             json_data = json.dumps(response, ensure_ascii=False)
             return Response(json_data, content_type='application/json; charset=utf-8')
