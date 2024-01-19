@@ -3,6 +3,7 @@ from flask import Flask, jsonify, Response, render_template
 import json
 from instagrapi import Client
 from instagrapi.types import User
+from pyngrok import ngrok
 import re
 
 app = Flask(__name__)
@@ -19,6 +20,24 @@ try:
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
+def get_average_likes(username):
+    user_id = cl.user_id_from_username(username)
+    posts = cl.user_medias(user_id)
+
+    total_likes = sum(post.like_count for post in posts)
+    average_likes = total_likes / len(posts) if posts else 0
+
+    return average_likes
+
+def format_likes(likes):
+    if likes < 1000:
+        return str(round(likes, 2))
+    elif likes < 1000000:
+        return f"{round(likes / 1000, 2)}K"
+    else:
+        return f"{round(likes / 1000000, 2)}M"
+
+
 async def calculate_engagement_rate(username, last_n_posts=10):
     try:
         user_id = cl.user_id_from_username(username)
@@ -33,7 +52,6 @@ async def calculate_engagement_rate(username, last_n_posts=10):
 
         if total_posts == 0:
             return 0
-
         total_likes = sum(post.like_count for post in posts)
         total_comments = sum(post.comment_count for post in posts)
         total_interactions = total_likes + total_comments
@@ -50,19 +68,24 @@ async def calculate_engagement_rate(username, last_n_posts=10):
 
 async def get_profile(username):
     try:
+        user_info = cl.user_info_by_username(username)
         engagement_rate = await calculate_engagement_rate(username)
+        average_likes = get_average_likes(username)
+
         if engagement_rate is not None:
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
                 'username': username,
-                'engagement_rate': round(engagement_rate, 2) if isinstance(engagement_rate, (float, int)) else None
+                'engagement_rate': round(engagement_rate, 2) if isinstance(engagement_rate, (float, int)) else None,
+                'followers': user_info.follower_count,
+                'average_likes': format_likes(average_likes) 
             }
             return jsonify(response)
         else:
             response = {
                 'success': False,
-                'message': 'User not found',
+                'message': 'User not found or error occurred',
                 'data': None
             }
             return jsonify(response)
@@ -80,6 +103,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = False)
+        app.run(port=5003)
     except Exception as e:
         print(f"An error occurred: {e}")
