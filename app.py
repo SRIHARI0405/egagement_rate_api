@@ -3,7 +3,6 @@ from flask import Flask, jsonify, Response, render_template
 import json
 from instagrapi import Client
 from instagrapi.types import User
-from pyngrok import ngrok
 import re
 
 app = Flask(__name__)
