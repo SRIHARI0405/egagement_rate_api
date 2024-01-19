@@ -71,7 +71,7 @@ async def get_profile(username):
         engagement_rate = await calculate_engagement_rate(username)
         average_likes = get_average_likes(username)
 
-        if engagement_rate is not None:
+        if engagement_rate is not None and average_likes is not None:
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -80,7 +80,8 @@ async def get_profile(username):
                 'followers': user_info.follower_count,
                 'average_likes': format_likes(average_likes) 
             }
-            return jsonify(response)
+            json_data = json.dumps(response, ensure_ascii=False)
+            return Response(json_data, content_type='application/json; charset=utf-8')
         else:
             response = {
                 'success': False,
