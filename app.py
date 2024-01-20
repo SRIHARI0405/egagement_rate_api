@@ -23,7 +23,7 @@ except Exception as e:
 async def get_average_likes(username):
         user_id = cl.user_id_from_username(username)
         user_info = cl.user_info_by_username(username)
-        posts = cl.user_medias(user_id,amount = 25)
+        posts = cl.user_medias(user_id,amount = 10)
 
         total_likes = sum(post.like_count for post in posts)
         average_likes = total_likes / len(posts) if posts else 0
