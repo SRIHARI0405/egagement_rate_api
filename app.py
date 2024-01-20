@@ -19,14 +19,17 @@ try:
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
+
 async def get_average_likes(username):
         user_id = cl.user_id_from_username(username)
-        posts = cl.user_medias(user_id,amount = 50)
+        user_info = cl.user_info_by_username(username)
+        posts = cl.user_medias(user_id,amount = 40)
 
         total_likes = sum(post.like_count for post in posts)
         average_likes = total_likes / len(posts) if posts else 0
 
         return average_likes
+
 
 def format_likes(likes):
     if likes < 1000:
@@ -37,7 +40,7 @@ def format_likes(likes):
         return f"{round(likes / 1000000, 2)}M"
 
 
-async def calculate_engagement_rate(username, last_n_posts=10):
+async def calculate_engagement_rate(username, last_n_posts=18):
     try:
         user_id = cl.user_id_from_username(username)
         user_info = cl.user_info_by_username(username)
@@ -51,14 +54,10 @@ async def calculate_engagement_rate(username, last_n_posts=10):
 
         if total_posts == 0:
             return 0
-        total_likes = sum(post.like_count for post in posts)
-        total_comments = sum(post.comment_count for post in posts)
-        total_interactions = total_likes + total_comments
 
-        if total_interactions == 0:
-            return 0
+        total_likes_comments = sum(post.like_count + post.comment_count for post in posts)
+        engagement_rate = (total_likes_comments / last_n_posts) / followers_count * 100
 
-        engagement_rate = (total_interactions / total_posts) / followers_count * 100
         return engagement_rate
 
     except Exception as e:
@@ -69,22 +68,23 @@ async def get_profile(username):
     try:
         user_info = cl.user_info_by_username(username)
         engagement_rate = await calculate_engagement_rate(username)
-        average_likes =  await get_average_likes(username)
+        average_likes = await get_average_likes(username)
 
-        if engagement_rate is not None:
+        if engagement_rate is not None and average_likes is not None:
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
                 'username': username,
                 'engagement_rate': round(engagement_rate, 2) if isinstance(engagement_rate, (float, int)) else None,
                 'followers': user_info.follower_count,
-                'average_likes': format_likes(average_likes) 
+                'average_likes': format_likes(average_likes) if isinstance(engagement_rate, (float, int)) else None 
             }
-            return jsonify(response)
+            json_data = json.dumps(response, ensure_ascii=False)
+            return Response(json_data, content_type='application/json; charset=utf-8')
         else:
             response = {
                 'success': False,
-                'message': 'User not found or error occurred',
+                'message': 'User not found or an error occurred',
                 'data': None
             }
             return jsonify(response)
@@ -102,9 +102,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        ngrok.set_auth_token("2arff4tSwjTYnwyIFidgSiirvAR_455g4FP2KkaQprbcYRGcu")
-        public_url = ngrok.connect(addr="127.0.0.1:5003", proto="http", bind_tls=True)
-        print(f' * ngrok tunnel "{public_url}" -> "http://127.0.0.1:5003"')
-        app.run(port=5003)
+        app.run(debug = True)
     except Exception as e:
         print(f"An error occurred: {e}")
