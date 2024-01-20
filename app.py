@@ -19,7 +19,7 @@ try:
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
-def get_average_likes(username, batch_size=350):
+def get_average_likes(username, batch_size=300):
     try:
         user_id = cl.user_id_from_username(username)
         all_posts = []
