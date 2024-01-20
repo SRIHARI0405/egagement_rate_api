@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 
 INSTAGRAM_USERNAME = 'loopstar154'
-INSTAGRAM_PASSWORD = 'Starbuzz123@'
+INSTAGRAM_PASSWORD = 'Starbuzz6@'
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 cl = Client(proxy=proxy)
@@ -19,28 +19,14 @@ try:
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
-def get_average_likes(username, batch_size=300):
-    try:
+async def get_average_likes(username):
         user_id = cl.user_id_from_username(username)
-        all_posts = []
+        posts = cl.user_medias(user_id,amount = 300)
 
-        count = 0
-        while True:
-            batch = cl.user_medias(user_id, amount=batch_size, sleep=0)
-            if not batch:
-                break
-            all_posts.extend(batch)
-            count += len(batch)
-            if count >= batch_size:
-                break
-
-        total_likes = sum(post.like_count for post in all_posts)
-        average_likes = total_likes / len(all_posts) if all_posts else 0
+        total_likes = sum(post.like_count for post in posts)
+        average_likes = total_likes / len(posts) if posts else 0
 
         return average_likes
-    except Exception as e:
-        print(f"An error occurred while calculating average likes: {e}")
-        return None
 
 def format_likes(likes):
     if likes < 1000:
@@ -83,19 +69,18 @@ async def get_profile(username):
     try:
         user_info = cl.user_info_by_username(username)
         engagement_rate = await calculate_engagement_rate(username)
-        average_likes = get_average_likes(username)
+        average_likes =  await get_average_likes(username)
 
-        if engagement_rate is not None and average_likes is not None:
+        if engagement_rate is not None:
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
                 'username': username,
                 'engagement_rate': round(engagement_rate, 2) if isinstance(engagement_rate, (float, int)) else None,
                 'followers': user_info.follower_count,
-                'average_likes': format_likes(average_likes) if isinstance(engagement_rate, (float, int)) else None 
+                'average_likes': format_likes(average_likes) 
             }
-            json_data = json.dumps(response, ensure_ascii=False)
-            return Response(json_data, content_type='application/json; charset=utf-8')
+            return jsonify(response)
         else:
             response = {
                 'success': False,
@@ -117,6 +102,9 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = False)
+        ngrok.set_auth_token("2arff4tSwjTYnwyIFidgSiirvAR_455g4FP2KkaQprbcYRGcu")
+        public_url = ngrok.connect(addr="127.0.0.1:5003", proto="http", bind_tls=True)
+        print(f' * ngrok tunnel "{public_url}" -> "http://127.0.0.1:5003"')
+        app.run(port=5003)
     except Exception as e:
         print(f"An error occurred: {e}")
