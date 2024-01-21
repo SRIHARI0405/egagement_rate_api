@@ -2,6 +2,7 @@ import asyncio
 from flask import Flask, jsonify, Response, render_template
 import json
 from instagrapi import Client
+from pyngrok import ngrok
 from instagrapi.types import User
 import re
 
@@ -23,7 +24,7 @@ except Exception as e:
 async def get_average_likes(username):
         user_id = cl.user_id_from_username(username)
         user_info = cl.user_info_by_username(username)
-        posts = cl.user_medias(user_id,amount = 10)
+        posts = cl.user_medias(user_id,amount = 20)
 
         total_likes = sum(post.like_count for post in posts)
         average_likes = total_likes / len(posts) if posts else 0
@@ -45,7 +46,6 @@ async def calculate_engagement_rate(username, last_n_posts=18):
         user_id = cl.user_id_from_username(username)
         user_info = cl.user_info_by_username(username)
         followers_count = user_info.follower_count
-
         if followers_count == 0:
             return None
 
@@ -102,6 +102,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = True)
+        app.run(port=5003)
     except Exception as e:
         print(f"An error occurred: {e}")
