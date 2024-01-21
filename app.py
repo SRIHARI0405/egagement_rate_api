@@ -2,14 +2,13 @@ import asyncio
 from flask import Flask, jsonify, Response, render_template
 import json
 from instagrapi import Client
-from pyngrok import ngrok
 from instagrapi.types import User
 import re
 
 app = Flask(__name__)
 
 INSTAGRAM_USERNAME = 'loopstar154'
-INSTAGRAM_PASSWORD = 'Starbuzz6@'
+INSTAGRAM_PASSWORD = 'Starbuzz123@'
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 cl = Client(proxy=proxy)
