@@ -2,8 +2,8 @@ import asyncio
 from flask import Flask, jsonify, Response, render_template
 import json
 from instagrapi import Client
+from datetime import datetime, timedelta
 from instagrapi.types import User
-import re
 
 app = Flask(__name__)
 
@@ -19,64 +19,135 @@ try:
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
+async def fetch_last_n_days_posts(username, n=12):
+    user_id = cl.user_id_from_username(username)
+    posts = cl.user_medias(user_id, amount=n)
+    return posts
 
-async def get_average_likes(username):
-        user_id = cl.user_id_from_username(username)
-        user_info = cl.user_info_by_username(username)
-        posts = cl.user_medias(user_id,amount = 20)
+async def get_average_likes_and_comments(posts):
+    if not posts:
+        return 0, 0, 0
 
-        total_likes = sum(post.like_count for post in posts)
-        average_likes = total_likes / len(posts) if posts else 0
+    visible_likes = [post.like_count for post in posts if post.like_count is not None]
+    total_likes = sum(visible_likes)
+    average_likes = total_likes / len(visible_likes) if visible_likes else 0
 
-        return average_likes
+    visible_comments = [post.comment_count for post in posts if post.comment_count is not None]
+    total_comments = sum(visible_comments)
+    average_comments = total_comments / len(visible_comments) if visible_comments else 0
 
+    ratio_per_100_likes = (total_comments / total_likes) * 100 if total_likes != 0 else 0
 
-def format_likes(likes):
-    if likes < 1000:
-        return str(round(likes, 2))
-    elif likes < 1000000:
-        return f"{round(likes / 1000, 2)}K"
+    return average_likes, average_comments, ratio_per_100_likes
+
+async def categorize_likes_comments_ratio(ratio):
+
+    if ratio == 0:
+      return "Low"
+
+    if ratio < 1:
+        return "Good"
+    elif 1 <= ratio < 5:
+        return "Average"
     else:
-        return f"{round(likes / 1000000, 2)}M"
+        return "Low"
 
+async def calculate_engagement_rate(posts):
+  if posts == 0:
+    return 0
+  visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
 
-async def calculate_engagement_rate(username, last_n_posts=18):
+  if visible_likes_comments == 0:
+    return 0
+
+  user_info = cl.user_info_by_username(posts[0].user.username)
+  engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
+  return engagement_rate
+
+# async def calculate_post_reachability(username,last_n_days = 12):
+#     posts = await fetch_last_n_days_posts(username, n=last_n_days)
+#     if not posts or len(posts) == 0:
+#       return 0
+#     total_views = sum(post.view_count for post in posts)
+#     followers_count = cl.user_info_by_username(posts[0].user.username).follower_count
+
+#     if total_views == 0 or followers_count == 0:
+#         return 0
+
+#     post_reachability_percent = (total_views / followers_count) * 100 / 100
+#     return post_reachability_percent
+
+def format_number(value, is_percentage=False):
+    formatted_value = None
+    if value is not None:
+        if is_percentage:
+            formatted_value = f"{round(value, 2)}%"
+        elif value < 1000:
+            formatted_value = str(round(value, 2))
+        elif value < 1000000:
+            formatted_value = f"{round(value / 1000, 2)}K"
+        else:
+            formatted_value = f"{round(value / 1000000, 2)}M"
+    return formatted_value
+
+async def get_paid_posts(posts):
+    if posts == 0:
+      return 0
+
+    paid_posts = [post for post in posts if has_paid_tags(post.caption_text)]
+    return paid_posts
+
+def has_paid_tags(caption_text):
+    paid_tags = ['#ad', '#sponsored', '#partnership', '@sponsor', '@partnership', 'paid partnership with', 'in collaboration with', 'thanks to']
+    return any(tag.lower() in caption_text.lower() for tag in paid_tags)
+
+async def calculate_paid_engagement_rate(username, last_n_days=12):
     try:
-        user_id = cl.user_id_from_username(username)
         user_info = cl.user_info_by_username(username)
-        followers_count = user_info.follower_count
-        if followers_count == 0:
-            return None
+        if user_info.follower_count == 0:
+            return 0, 0
 
-        posts = cl.user_medias(user_id, amount=last_n_posts)
-        total_posts = len(posts)
+        posts = await fetch_last_n_days_posts(username, n=last_n_days)
+        paid_posts = await get_paid_posts(posts)
 
-        if total_posts == 0:
-            return 0
+        paid_posts_len = len(paid_posts)
 
-        total_likes_comments = sum(post.like_count + post.comment_count for post in posts)
-        engagement_rate = (total_likes_comments / last_n_posts) / followers_count * 100
+        if paid_posts_len == 0 or user_info.follower_count == 0:
+            return 0, 0
 
-        return engagement_rate
+        total_likes_comments = sum(post.like_count + post.comment_count for post in paid_posts if post.like_count is not None and post.comment_count is not None)
+        engagement_rate = (total_likes_comments / paid_posts_len) / user_info.follower_count * 100
+
+        return engagement_rate, paid_posts_len
 
     except Exception as e:
-        print(f"An error occurred while calculating engagement rate: {e}")
-        return None
+        print(f"An error occurred while calculating paid engagement rate: {e}")
+        return 0, 0
 
 async def get_profile(username):
     try:
-        user_info = cl.user_info_by_username(username)
-        engagement_rate = await calculate_engagement_rate(username)
-        average_likes = await get_average_likes(username)
+        posts = await fetch_last_n_days_posts(username)
+        average_likes, average_comments, ratio_per_100_likes = await get_average_likes_and_comments(posts)
+        engagement_rate = await calculate_engagement_rate(posts)
+        paid_engagement_rate, paid_posts_len = await calculate_paid_engagement_rate(username)
+        category = await categorize_likes_comments_ratio(ratio_per_100_likes)
+        follower_count = cl.user_info_by_username(username).follower_count
+        # post_reachability_percent = await calculate_post_reachability(username)
 
-        if engagement_rate is not None and average_likes is not None:
+        if engagement_rate is not None and average_likes is not None and average_comments is not None and ratio_per_100_likes is not None and paid_engagement_rate is not None and paid_posts_len is not None and category is not None :
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
                 'username': username,
-                'engagement_rate': round(engagement_rate, 2) if isinstance(engagement_rate, (float, int)) else None,
-                'followers': user_info.follower_count,
-                'average_likes': format_likes(average_likes) if isinstance(engagement_rate, (float, int)) else None 
+                'engagement_rate': format_number(round(engagement_rate, 2), is_percentage=True),
+                'followers': format_number(follower_count),
+                'average_likes': format_number(average_likes),
+                'average_comments': format_number(average_comments),
+                'likes_comments_ratio': format_number(round(ratio_per_100_likes, 2), is_percentage=True),
+                'likes_comments_ratio_category': category,
+                # 'post_reachability': format_number(round(post_reachability_percent, 2), is_percentage=True),
+                'paid_posts_len': paid_posts_len,
+                'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True)
             }
             json_data = json.dumps(response, ensure_ascii=False)
             return Response(json_data, content_type='application/json; charset=utf-8')
@@ -101,6 +172,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(port=5003)
+        app.run(debug = False)
     except Exception as e:
         print(f"An error occurred: {e}")
