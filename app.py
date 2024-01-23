@@ -84,6 +84,33 @@ async def calculate_average_posts_per_week(username, last_n_days):
         print(f"An error occurred while calculating average posts per week: {e}")
         return 0
 
+async def calculate_consistency_score(username, last_n_days=50):
+    try:
+        user_id = cl.user_id_from_username(username)
+        if user_id is None:
+          return 0
+
+        posts = await fetch_last_n_days_posts(username, n=last_n_days)
+
+        if not posts:
+            return 0
+
+        total_posts = len(posts)
+        oldest_post_timestamp = posts[-1].taken_at
+
+        oldest_post_timestamp = int(oldest_post_timestamp.replace(tzinfo=timezone.utc).timestamp())
+
+        total_time_period_days = (datetime.utcnow().timestamp() - oldest_post_timestamp) / (24 * 3600)
+
+        consistency_score = (total_posts / total_time_period_days) * 1.5 
+
+        return consistency_score
+
+    except Exception as e:
+        print(f"An error occurred while calculating consistency score: {e}")
+        return 0
+
+
 # async def calculate_post_reachability(posts):
 #     if not posts or len(posts) == 0:
 #         return 0
@@ -161,9 +188,10 @@ async def get_profile(username):
         paid_engagement_rate, paid_posts_len = await calculate_paid_engagement_rate(username)
         category = await categorize_likes_comments_ratio(ratio_per_100_likes)
         average_posts_per_week = await calculate_average_posts_per_week(username, 30)
+        consistency_score_value = await calculate_consistency_score(username,30)
         follower_count = cl.user_info_by_username(username).follower_count
 
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week]):
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -176,6 +204,7 @@ async def get_profile(username):
                 'likes_comments_ratio_category': category,
                 'paid_posts_len': paid_posts_len,
                 'post_frequency': format_number(round(average_posts_per_week,2), is_percentage=True),
+                'consistency_score': round(consistency_score_value,2),
                 'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True)
             }
             json_data = json.dumps(response, ensure_ascii=False)
@@ -201,6 +230,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(port=5003)
+        app.run(debug = False)
     except Exception as e:
         print(f"An error occurred: {e}")
