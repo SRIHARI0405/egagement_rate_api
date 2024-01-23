@@ -13,13 +13,14 @@ INSTAGRAM_PASSWORD = 'Starbuzz123@'
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 cl = Client(proxy=proxy)
 
+
 try:
     cl.load_settings('session-loop.json')
     cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
-async def fetch_last_n_days_posts(username, n=12):
+async def fetch_last_n_days_posts(username, n=18):
     user_id = cl.user_id_from_username(username)
     posts = cl.user_medias(user_id, amount=n)
     return posts
@@ -43,7 +44,7 @@ async def get_average_likes_and_comments(posts):
 async def categorize_likes_comments_ratio(ratio):
 
     if ratio == 0:
-      return "Low"
+      return "No Post"
 
     if ratio < 1:
         return "Good"
@@ -64,17 +65,36 @@ async def calculate_engagement_rate(posts):
   engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
   return engagement_rate
 
-# async def calculate_post_reachability(username,last_n_days = 12):
-#     posts = await fetch_last_n_days_posts(username, n=last_n_days)
+async def calculate_average_posts_per_week(username, last_n_days):
+    try:
+        user_id = cl.user_id_from_username(username)
+        posts = cl.user_medias(user_id, amount=last_n_days)
+
+        if not posts:
+            return 0
+        oldest_post_timestamp = posts[-1].taken_at
+        oldest_post_timestamp = int(oldest_post_timestamp.replace(tzinfo=timezone.utc).timestamp())
+        weeks_since_oldest_post = (datetime.utcnow().timestamp() - oldest_post_timestamp) / (7 * 24 * 3600)
+
+        average_posts_per_week = len(posts) / weeks_since_oldest_post
+
+        return average_posts_per_week
+
+    except Exception as e:
+        print(f"An error occurred while calculating average posts per week: {e}")
+        return 0
+
+# async def calculate_post_reachability(posts):
 #     if not posts or len(posts) == 0:
-#       return 0
+#         return 0
+
 #     total_views = sum(post.view_count for post in posts)
 #     followers_count = cl.user_info_by_username(posts[0].user.username).follower_count
 
 #     if total_views == 0 or followers_count == 0:
 #         return 0
 
-#     post_reachability_percent = (total_views / followers_count) * 100 / 100
+#     post_reachability_percent = (total_views / followers_count) * 100
 #     return post_reachability_percent
 
 def format_number(value, is_percentage=False):
@@ -101,7 +121,7 @@ def has_paid_tags(caption_text):
     paid_tags = ['#ad', '#sponsored', '#partnership', '@sponsor', '@partnership', 'paid partnership with', 'in collaboration with', 'thanks to']
     return any(tag.lower() in caption_text.lower() for tag in paid_tags)
 
-async def calculate_paid_engagement_rate(username, last_n_days=12):
+async def calculate_paid_engagement_rate(username, last_n_days=18):
     try:
         user_info = cl.user_info_by_username(username)
         if user_info.follower_count == 0:
@@ -126,15 +146,24 @@ async def calculate_paid_engagement_rate(username, last_n_days=12):
 
 async def get_profile(username):
     try:
+        user_info = cl.user_info_by_username(username)
+        
+        if user_info.is_private:
+            response = {
+                'success': True,
+                'message': 'User profile is private',
+                'data': None
+            }
+            return jsonify(response)
         posts = await fetch_last_n_days_posts(username)
         average_likes, average_comments, ratio_per_100_likes = await get_average_likes_and_comments(posts)
         engagement_rate = await calculate_engagement_rate(posts)
         paid_engagement_rate, paid_posts_len = await calculate_paid_engagement_rate(username)
         category = await categorize_likes_comments_ratio(ratio_per_100_likes)
+        average_posts_per_week = await calculate_average_posts_per_week(username, 30)
         follower_count = cl.user_info_by_username(username).follower_count
-        # post_reachability_percent = await calculate_post_reachability(username)
 
-        if engagement_rate is not None and average_likes is not None and average_comments is not None and ratio_per_100_likes is not None and paid_engagement_rate is not None and paid_posts_len is not None and category is not None :
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -145,8 +174,8 @@ async def get_profile(username):
                 'average_comments': format_number(average_comments),
                 'likes_comments_ratio': format_number(round(ratio_per_100_likes, 2), is_percentage=True),
                 'likes_comments_ratio_category': category,
-                # 'post_reachability': format_number(round(post_reachability_percent, 2), is_percentage=True),
                 'paid_posts_len': paid_posts_len,
+                'post_frequency': format_number(round(average_posts_per_week,2), is_percentage=True),
                 'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True)
             }
             json_data = json.dumps(response, ensure_ascii=False)
@@ -172,6 +201,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = False)
+        app.run(port=5003)
     except Exception as e:
         print(f"An error occurred: {e}")
