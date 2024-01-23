@@ -2,7 +2,7 @@ import asyncio
 from flask import Flask, jsonify, Response, render_template
 import json
 from instagrapi import Client
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from instagrapi.types import User
 
 app = Flask(__name__)
