@@ -1,5 +1,5 @@
 import asyncio
-from flask import Flask, jsonify, Response, render_template
+from flask import Flask, jsonify, Response
 import json
 from instagrapi import Client
 from datetime import datetime, timedelta, timezone
@@ -12,7 +12,6 @@ INSTAGRAM_PASSWORD = 'Starbuzz123@'
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 cl = Client(proxy=proxy)
-
 
 try:
     cl.load_settings('session-loop.json')
@@ -84,24 +83,34 @@ async def calculate_average_posts_per_week(username, last_n_days):
         print(f"An error occurred while calculating average posts per week: {e}")
         return 0
 
-async def calculate_consistency_score(username, last_n_days=50):
+async def fetch_last_30_days_posts(username, n=50):
+    try:
+        user_id = cl.user_id_from_username(username)
+        all_posts = cl.user_medias(user_id, amount=n)
+        
+        current_timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
+        last_30_days_posts = [post for post in all_posts if (current_timestamp - post.taken_at) < timedelta(days=30)]
+        
+        return last_30_days_posts
+
+    except Exception as e:
+        print(f"An error occurred while fetching posts: {e}")
+        return []
+
+
+async def calculate_consistency_score(username, last_n_days = 30):
     try:
         user_id = cl.user_id_from_username(username)
         if user_id is None:
           return 0
 
-        posts = await fetch_last_n_days_posts(username, n=last_n_days)
+        posts = await fetch_last_30_days_posts(username, n=last_n_days)
 
         if not posts:
             return 0
 
         total_posts = len(posts)
-        oldest_post_timestamp = posts[-1].taken_at
-
-        oldest_post_timestamp = int(oldest_post_timestamp.replace(tzinfo=timezone.utc).timestamp())
-
-        total_time_period_days = (datetime.utcnow().timestamp() - oldest_post_timestamp) / (24 * 3600)
-
+        total_time_period_days = 30
         consistency_score = (total_posts / total_time_period_days) * 1.5 
 
         return consistency_score
@@ -109,20 +118,6 @@ async def calculate_consistency_score(username, last_n_days=50):
     except Exception as e:
         print(f"An error occurred while calculating consistency score: {e}")
         return 0
-
-
-# async def calculate_post_reachability(posts):
-#     if not posts or len(posts) == 0:
-#         return 0
-
-#     total_views = sum(post.view_count for post in posts)
-#     followers_count = cl.user_info_by_username(posts[0].user.username).follower_count
-
-#     if total_views == 0 or followers_count == 0:
-#         return 0
-
-#     post_reachability_percent = (total_views / followers_count) * 100
-#     return post_reachability_percent
 
 def format_number(value, is_percentage=False):
     formatted_value = None
@@ -230,6 +225,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = False)
+        app.run(debug=False)
     except Exception as e:
         print(f"An error occurred: {e}")
