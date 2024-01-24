@@ -19,7 +19,7 @@ try:
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
-async def fetch_last_n_days_posts(username, n=18):
+async def fetch_last_n_days_posts(username, n=20):
     user_id = cl.user_id_from_username(username)
     posts = cl.user_medias(user_id, amount=n)
     return posts
@@ -41,16 +41,47 @@ async def get_average_likes_and_comments(posts):
     return average_likes, average_comments, ratio_per_100_likes
 
 async def categorize_likes_comments_ratio(ratio):
-
     if ratio == 0:
       return "No Post"
-
     if ratio < 1:
         return "Good"
     elif 1 <= ratio < 5:
         return "Average"
     else:
         return "Low"
+
+def estimate_post_price(follower_count):
+    if follower_count == 0:
+        return 0
+    if follower_count < 15000:
+        estimated_cost_range = "$500 - $2000"
+    elif 15000 <= follower_count < 75000:
+        estimated_cost_range = "$2000 - $8000"
+    elif 75000 <= follower_count < 250000:
+        estimated_cost_range = "$8000 - $20000"
+    elif 250000 <= follower_count < 1000000:
+        estimated_cost_range = "$20000 - $45000"
+    elif follower_count >= 1000000:
+        estimated_cost_range = "$45000 - $60000"
+
+    cost_values = [int(value.replace('$', '').replace(',', '')) for value in estimated_cost_range.split('-')]
+
+    ten_percent_cost_range = [value * 0.1 for value in cost_values]
+
+    rounded_ten_percent_cost_range = [round(value) for value in ten_percent_cost_range]
+
+    return f"${rounded_ten_percent_cost_range[0]} - ${rounded_ten_percent_cost_range[1]}"
+
+def estimated_reach(posts):
+    if posts == 0:
+        return 0
+    reach_values = [post.view_count for post in posts if post.view_count is not None and post.view_count > 0]
+    estimated_reach_low = min(reach_values) if reach_values else 0
+    estimated_reach_high = max(reach_values) if reach_values else 0
+    formatted_estimated_reach_low = format_number(estimated_reach_low, is_percentage=False)
+    formatted_estimated_reach_high = format_number(estimated_reach_high, is_percentage=False)
+    estimated_reach = f"{formatted_estimated_reach_low} to {formatted_estimated_reach_high}"
+    return estimated_reach
 
 async def calculate_engagement_rate(posts):
   if posts == 0:
@@ -83,10 +114,10 @@ async def calculate_average_posts_per_week(username, last_n_days):
         print(f"An error occurred while calculating average posts per week: {e}")
         return 0
 
-async def fetch_last_30_days_posts(username, n=50):
+async def fetch_last_30_days_posts(username):
     try:
         user_id = cl.user_id_from_username(username)
-        all_posts = cl.user_medias(user_id, amount=n)
+        all_posts = cl.user_medias(user_id, amount=50)
         
         current_timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
         last_30_days_posts = [post for post in all_posts if (current_timestamp - post.taken_at) < timedelta(days=30)]
@@ -98,13 +129,13 @@ async def fetch_last_30_days_posts(username, n=50):
         return []
 
 
-async def calculate_consistency_score(username, last_n_days = 30):
+async def calculate_consistency_score(username, last_n_days):
     try:
         user_id = cl.user_id_from_username(username)
         if user_id is None:
           return 0
 
-        posts = await fetch_last_30_days_posts(username, n=last_n_days)
+        posts = await fetch_last_30_days_posts(username)
 
         if not posts:
             return 0
@@ -143,7 +174,7 @@ def has_paid_tags(caption_text):
     paid_tags = ['#ad', '#sponsored', '#partnership', '@sponsor', '@partnership', 'paid partnership with', 'in collaboration with', 'thanks to']
     return any(tag.lower() in caption_text.lower() for tag in paid_tags)
 
-async def calculate_paid_engagement_rate(username, last_n_days=18):
+async def calculate_paid_engagement_rate(username, last_n_days=20):
     try:
         user_info = cl.user_info_by_username(username)
         if user_info.follower_count == 0:
@@ -185,8 +216,10 @@ async def get_profile(username):
         average_posts_per_week = await calculate_average_posts_per_week(username, 30)
         consistency_score_value = await calculate_consistency_score(username,30)
         follower_count = cl.user_info_by_username(username).follower_count
+        estimated_cost = estimate_post_price(follower_count)
+        maximum_reach = estimated_reach(posts)
 
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value]):
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -198,6 +231,8 @@ async def get_profile(username):
                 'likes_comments_ratio': format_number(round(ratio_per_100_likes, 2), is_percentage=True),
                 'likes_comments_ratio_category': category,
                 'paid_posts_len': paid_posts_len,
+                'estimated_post_price': estimated_cost,
+                'estimated_reach': maximum_reach,
                 'post_frequency': format_number(round(average_posts_per_week,2), is_percentage=True),
                 'consistency_score': round(consistency_score_value,2),
                 'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True)
