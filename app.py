@@ -9,7 +9,7 @@ import nltk
 import os
 
 nltk.download('punkt')
-
+app = Flask(__name__)
 
 INSTAGRAM_USERNAME = 'loopstar154'
 INSTAGRAM_PASSWORD = 'Starbuzz123@'
