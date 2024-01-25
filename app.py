@@ -5,8 +5,18 @@ from textblob import TextBlob
 from instagrapi import Client
 from datetime import datetime, timedelta, timezone
 from instagrapi.types import User
+import nltk
+from nltk.data import find
+from pathlib import Path
 
 app = Flask(__name__)
+
+resource_path = str(find("tokenizers/punkt"))
+resource_path_parent = str(Path(resource_path).parent)
+nltk.data.path.append(resource_path_parent)
+
+if not Path(resource_path).exists():
+    nltk.download("punkt", download_dir=resource_path_parent, quiet=True)
 
 INSTAGRAM_USERNAME = 'loopstar154'
 INSTAGRAM_PASSWORD = 'Starbuzz123@'
