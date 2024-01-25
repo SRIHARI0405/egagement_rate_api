@@ -1,15 +1,18 @@
 import asyncio
-from flask import Flask, jsonify, Response
+from flask import Flask, jsonify, Response, render_template
 import json
 from textblob import TextBlob
 from instagrapi import Client
+from googletrans import Translator
+from langdetect import detect
+
 from datetime import datetime, timedelta, timezone
 from instagrapi.types import User
-import nltk
-import os
+
+app = Flask(__name__)
 
 nltk.download('punkt')
-app = Flask(__name__)
+translator = Translator()
 
 INSTAGRAM_USERNAME = 'loopstar154'
 INSTAGRAM_PASSWORD = 'Starbuzz123@'
@@ -92,30 +95,39 @@ def estimated_reach(posts):
 
 
 def categorize_sentiment(polarity):
-    if polarity > 0:
+    if polarity > 0.1:
         return 'Positive'
-    elif polarity < 0:
+    elif polarity < -0.1:
         return 'Negative'
     else:
         return 'Neutral'
 
+def translate_and_analyze_sentiment(caption_text, source_language):
+    translation = translator.translate(caption_text, dest='en', src=source_language).text
+    blob = TextBlob(translation)
+    sentiment_polarity = blob.sentiment.polarity
+    sentiment_category = categorize_sentiment(sentiment_polarity)
+    return sentiment_category
+
 
 def analyze_sentiment_and_words(posts):
     sentiment_counts = {'Positive': 0, 'Negative': 0, 'Neutral': 0}
-    most_frequent_words = {}
-
+    
     for post in posts:
         caption_text = post.caption_text if post.caption_text else ""
-        blob = TextBlob(caption_text)
+        try:
+            language = detect(caption_text)
+        except:
+            language = 'en'  
 
-        sentiment_polarity = blob.sentiment.polarity
-        sentiment_category = categorize_sentiment(sentiment_polarity)
+        if language != 'en':
+            sentiment_category = translate_and_analyze_sentiment(caption_text, language)
+        else:
+            blob = TextBlob(caption_text)
+            sentiment_polarity = blob.sentiment.polarity
+            sentiment_category = categorize_sentiment(sentiment_polarity)
 
         sentiment_counts[sentiment_category] += 1
-        words = [word.lower() for word in blob.words if len(word) > 1]
-
-        for word in words:
-            most_frequent_words[word] = most_frequent_words.get(word, 0) + 1
 
     most_frequent_sentiment = max(sentiment_counts, key=sentiment_counts.get)
     return most_frequent_sentiment
@@ -255,7 +267,7 @@ async def get_profile(username):
         estimated_cost = estimate_post_price(follower_count)
         maximum_reach = estimated_reach(posts)
 
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, most_frequent_sentiment]):
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -297,6 +309,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug=False)
+        app.run(debug = False)
     except Exception as e:
         print(f"An error occurred: {e}")
