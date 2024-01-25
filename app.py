@@ -4,6 +4,7 @@ import json
 from textblob import TextBlob
 from instagrapi import Client
 from googletrans import Translator
+import nltk
 from langdetect import detect
 
 from datetime import datetime, timedelta, timezone
