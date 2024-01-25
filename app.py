@@ -1,6 +1,7 @@
 import asyncio
 from flask import Flask, jsonify, Response
 import json
+from textblob import TextBlob
 from instagrapi import Client
 from datetime import datetime, timedelta, timezone
 from instagrapi.types import User
@@ -13,13 +14,14 @@ INSTAGRAM_PASSWORD = 'Starbuzz123@'
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 cl = Client(proxy=proxy)
 
+
 try:
     cl.load_settings('session-loop.json')
     cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
 except Exception as e:
     print(f"Instagram login failed: {e}")
 
-async def fetch_last_n_days_posts(username, n=20):
+async def fetch_last_n_days_posts(username, n=18):
     user_id = cl.user_id_from_username(username)
     posts = cl.user_medias(user_id, amount=n)
     return posts
@@ -43,16 +45,19 @@ async def get_average_likes_and_comments(posts):
 async def categorize_likes_comments_ratio(ratio):
     if ratio == 0:
       return "No Post"
-    if ratio < 1:
+    if 0.01 <= ratio < 1:
         return "Good"
     elif 1 <= ratio < 5:
         return "Average"
+    elif 0.001 <= ratio < 0.01:
+        return "Average"
+    elif ratio < 0.001:
+        return "Low"
     else:
         return "Low"
 
 def estimate_post_price(follower_count):
-    if follower_count == 0:
-        return 0
+
     if follower_count < 15000:
         estimated_cost_range = "$500 - $2000"
     elif 15000 <= follower_count < 75000:
@@ -73,15 +78,44 @@ def estimate_post_price(follower_count):
     return f"${rounded_ten_percent_cost_range[0]} - ${rounded_ten_percent_cost_range[1]}"
 
 def estimated_reach(posts):
-    if posts == 0:
-        return 0
-    reach_values = [post.view_count for post in posts if post.view_count is not None and post.view_count > 0]
-    estimated_reach_low = min(reach_values) if reach_values else 0
-    estimated_reach_high = max(reach_values) if reach_values else 0
-    formatted_estimated_reach_low = format_number(estimated_reach_low, is_percentage=False)
-    formatted_estimated_reach_high = format_number(estimated_reach_high, is_percentage=False)
-    estimated_reach = f"{formatted_estimated_reach_low} to {formatted_estimated_reach_high}"
-    return estimated_reach
+
+  reach_values = [post.view_count for post in posts if post.view_count is not None and post.view_count > 0]
+  estimated_reach_low = min(reach_values) if reach_values else 0
+  estimated_reach_high = max(reach_values) if reach_values else 0
+  formatted_estimated_reach_low = format_number(estimated_reach_low, is_percentage=False)
+  formatted_estimated_reach_high = format_number(estimated_reach_high, is_percentage=False)
+  estimated_reach = f"{formatted_estimated_reach_low} to {formatted_estimated_reach_high}"
+  return estimated_reach
+
+
+def categorize_sentiment(polarity):
+    if polarity > 0:
+        return 'Positive'
+    elif polarity < 0:
+        return 'Negative'
+    else:
+        return 'Neutral'
+
+
+def analyze_sentiment_and_words(posts):
+    sentiment_counts = {'Positive': 0, 'Negative': 0, 'Neutral': 0}
+    most_frequent_words = {}
+
+    for post in posts:
+        caption_text = post.caption_text if post.caption_text else ""
+        blob = TextBlob(caption_text)
+
+        sentiment_polarity = blob.sentiment.polarity
+        sentiment_category = categorize_sentiment(sentiment_polarity)
+
+        sentiment_counts[sentiment_category] += 1
+        words = [word.lower() for word in blob.words if len(word) > 1]
+
+        for word in words:
+            most_frequent_words[word] = most_frequent_words.get(word, 0) + 1
+
+    most_frequent_sentiment = max(sentiment_counts, key=sentiment_counts.get)
+    return most_frequent_sentiment
 
 async def calculate_engagement_rate(posts):
   if posts == 0:
@@ -114,14 +148,12 @@ async def calculate_average_posts_per_week(username, last_n_days):
         print(f"An error occurred while calculating average posts per week: {e}")
         return 0
 
-async def fetch_last_30_days_posts(username):
+async def fetch_last_30_days_posts(username, n=50):
     try:
         user_id = cl.user_id_from_username(username)
-        all_posts = cl.user_medias(user_id, amount=50)
-        
+        all_posts = cl.user_medias(user_id, amount=n)
         current_timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
         last_30_days_posts = [post for post in all_posts if (current_timestamp - post.taken_at) < timedelta(days=30)]
-        
         return last_30_days_posts
 
     except Exception as e:
@@ -129,20 +161,20 @@ async def fetch_last_30_days_posts(username):
         return []
 
 
-async def calculate_consistency_score(username, last_n_days):
+async def calculate_consistency_score(username, last_n_days=50):
     try:
         user_id = cl.user_id_from_username(username)
         if user_id is None:
           return 0
 
-        posts = await fetch_last_30_days_posts(username)
+        posts = await fetch_last_30_days_posts(username, n=last_n_days)
 
         if not posts:
             return 0
 
         total_posts = len(posts)
         total_time_period_days = 30
-        consistency_score = (total_posts / total_time_period_days) * 1.5 
+        consistency_score = (total_posts / total_time_period_days) * 0.9 
 
         return consistency_score
 
@@ -174,7 +206,7 @@ def has_paid_tags(caption_text):
     paid_tags = ['#ad', '#sponsored', '#partnership', '@sponsor', '@partnership', 'paid partnership with', 'in collaboration with', 'thanks to']
     return any(tag.lower() in caption_text.lower() for tag in paid_tags)
 
-async def calculate_paid_engagement_rate(username, last_n_days=20):
+async def calculate_paid_engagement_rate(username, last_n_days=18):
     try:
         user_info = cl.user_info_by_username(username)
         if user_info.follower_count == 0:
@@ -211,6 +243,7 @@ async def get_profile(username):
         posts = await fetch_last_n_days_posts(username)
         average_likes, average_comments, ratio_per_100_likes = await get_average_likes_and_comments(posts)
         engagement_rate = await calculate_engagement_rate(posts)
+        most_frequent_sentiment = analyze_sentiment_and_words(posts)
         paid_engagement_rate, paid_posts_len = await calculate_paid_engagement_rate(username)
         category = await categorize_likes_comments_ratio(ratio_per_100_likes)
         average_posts_per_week = await calculate_average_posts_per_week(username, 30)
@@ -219,7 +252,7 @@ async def get_profile(username):
         estimated_cost = estimate_post_price(follower_count)
         maximum_reach = estimated_reach(posts)
 
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach]):
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, most_frequent_sentiment]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -235,6 +268,7 @@ async def get_profile(username):
                 'estimated_reach': maximum_reach,
                 'post_frequency': format_number(round(average_posts_per_week,2), is_percentage=True),
                 'consistency_score': round(consistency_score_value,2),
+                'brand_safety':most_frequent_sentiment,
                 'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True)
             }
             json_data = json.dumps(response, ensure_ascii=False)
