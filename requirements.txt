@@ -9,5 +9,6 @@ PySocks==1.7.1
 Werkzeug==1.0.1
 pillow==8.1.1
 textblob
+nltk==3.6.5
 asyncio==3.4.3
 
