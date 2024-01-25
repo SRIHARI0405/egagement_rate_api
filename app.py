@@ -8,10 +8,7 @@ from instagrapi.types import User
 import nltk
 import os
 
-punkt_path = nltk.data.find('tokenizers/punkt')
-
-if not os.path.exists(punkt_path):
-    nltk.download('punkt')
+nltk.download('punkt')
 
 
 INSTAGRAM_USERNAME = 'loopstar154'
