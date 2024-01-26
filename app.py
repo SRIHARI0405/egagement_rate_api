@@ -282,7 +282,7 @@ async def get_profile(username):
             }
             return jsonify(response)
         posts = await fetch_last_n_days_posts(username)
-        followers = cl.user_followers(cl.user_id_from_username(username), amount=100)
+        followers = cl.user_followers(cl.user_id_from_username(username), amount=50)
         reachability_percentage = calculate_reachability_percentage(followers)
         average_likes, average_comments, ratio_per_100_likes = await get_average_likes_and_comments(posts)
         engagement_rate = await calculate_engagement_rate(posts)
