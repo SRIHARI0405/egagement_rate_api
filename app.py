@@ -1,6 +1,7 @@
 import asyncio
 from flask import Flask, jsonify, Response, render_template
 import json
+import time
 from textblob import TextBlob
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from instagrapi import Client
@@ -17,11 +18,10 @@ nltk.download('punkt')
 translator = Translator()
 
 INSTAGRAM_USERNAME = 'loopstar154'
-INSTAGRAM_PASSWORD = 'Starbuzz123@'
+INSTAGRAM_PASSWORD = 'Starbuzz1234@'
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 cl = Client(proxy=proxy)
-
 
 try:
     cl.load_settings('session-loop.json')
@@ -267,7 +267,6 @@ async def calculate_paid_engagement_rate(username, last_n_days=18):
 async def get_profile(username):
     try:
         user_info = cl.user_info_by_username(username)
-        
         if user_info.is_private:
             response = {
                 'success': True,
@@ -319,11 +318,17 @@ async def get_profile(username):
             }
             return jsonify(response)
     except Exception as e:
+      if "404 Client Error: Not Found" in str(e):
+        print(f"User not found: {username}")
+      elif "429" in str(e):
+        # print(f"Rate limit exceeded. Retrying in {retry_delay} seconds (Retry {retry_number}/{max_retries}).")
+        time.sleep(10)
+      else:
         response = {
-            'success': False,
-            'message': f"An error occurred: {e}",
-            'data': None
-        }
+          'success': False,
+          'message': f"{e}",
+          'data': None
+                }
         return jsonify(response)
 
 @app.route('/engagement_rate/<username>')
