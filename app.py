@@ -96,9 +96,9 @@ def estimated_reach(posts):
 
 
 def categorize_sentiment(polarity):
-    if polarity > 0.1:
+    if polarity > 0.05:
         return 'Positive'
-    elif polarity < -0.1:
+    elif polarity < -0.05:
         return 'Negative'
     else:
         return 'Neutral'
