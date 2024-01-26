@@ -318,18 +318,18 @@ async def get_profile(username):
             }
             return jsonify(response)
     except Exception as e:
-      if "404 Client Error: Not Found" in str(e):
-        print(f"User not found: {username}")
-      elif "429" in str(e):
+        if "404 Client Error: Not Found" in str(e):
+            print(f"User not found: {username}")
+        elif "429" in str(e):
         # print(f"Rate limit exceeded. Retrying in {retry_delay} seconds (Retry {retry_number}/{max_retries}).")
-        time.sleep(10)
-      else:
-        response = {
-          'success': False,
-          'message': f"{e}",
-          'data': None
-                }
-        return jsonify(response)
+            time.sleep(10)
+        else:
+            response = {
+            'success': False,
+            'message': f"{e}",
+            'data': None
+            }
+            return jsonify(response)
 
 @app.route('/engagement_rate/<username>')
 def get_profile_route(username):
