@@ -2,6 +2,7 @@ import asyncio
 from flask import Flask, jsonify, Response, render_template
 import json
 from textblob import TextBlob
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from instagrapi import Client
 from googletrans import Translator
 import nltk
@@ -83,6 +84,30 @@ def estimate_post_price(follower_count):
     rounded_ten_percent_cost_range = [round(value) for value in ten_percent_cost_range]
 
     return f"${rounded_ten_percent_cost_range[0]} - ${rounded_ten_percent_cost_range[1]}"
+
+def fetch_user_info(username):
+    try:
+        user_id = cl.user_id_from_username(username)
+        return cl.user_info(user_id)
+    except Exception as e:
+        print(f"Error fetching data for {username}: {e}")
+        return None
+    
+def calculate_reachability_percentage(followers):
+    reachable_count = 0
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(fetch_user_info, follower_info.username) for follower_id, follower_info in followers.items()]
+        for future in as_completed(futures):
+            user_info = future.result()
+            if user_info:
+                following_count = user_info.following_count
+                if following_count <= 1500:
+                    reachable_count += 1
+
+    total_followers = len(followers)
+    reachability_percentage = (reachable_count / total_followers) * 100
+
+    return reachability_percentage
 
 def estimated_reach(posts):
 
@@ -257,6 +282,8 @@ async def get_profile(username):
             }
             return jsonify(response)
         posts = await fetch_last_n_days_posts(username)
+        followers = cl.user_followers(cl.user_id_from_username(username), amount=200)
+        reachability_percentage = calculate_reachability_percentage(followers)
         average_likes, average_comments, ratio_per_100_likes = await get_average_likes_and_comments(posts)
         engagement_rate = await calculate_engagement_rate(posts)
         most_frequent_sentiment = analyze_sentiment_and_words(posts)
@@ -285,7 +312,8 @@ async def get_profile(username):
                 'post_frequency': format_number(round(average_posts_per_week,2), is_percentage=True),
                 'consistency_score': round(consistency_score_value,2),
                 'brand_safety':most_frequent_sentiment,
-                'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True)
+                'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True),
+                'Audience_reachability': reachability_percentage
             }
             json_data = json.dumps(response, ensure_ascii=False)
             return Response(json_data, content_type='application/json; charset=utf-8')
