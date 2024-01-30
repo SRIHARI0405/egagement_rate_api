@@ -1,12 +1,15 @@
 import asyncio
-from flask import Flask, jsonify, Response
+from flask import Flask, jsonify, Response, render_template
 import json
+from pyngrok import ngrok
 import time
 from textblob import TextBlob
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from instagrapi import Client
 from googletrans import Translator
 import nltk
 from langdetect import detect
+
 from datetime import datetime, timedelta, timezone
 from instagrapi.types import User
 
@@ -54,18 +57,22 @@ async def get_average_likes_and_comments(posts):
 
     return average_likes, average_comments, ratio_per_100_likes
 
-async def get_average_likes_and_comments_reels(reels):
+async def get_average_likes_and_comments_reels(reels,posts):
     if not reels:
         return 0, 0, 0
+
     total_likes_reels = sum(reel.like_count for reel in reels if reel.like_count is not None)
     average_likes_reels = total_likes_reels / len(reels) if reels else 0
 
     total_comments_reel = sum(reel.comment_count for reel in reels if reel.comment_count is not None)
     average_comments_reel = total_comments_reel / len(reels) if reels else 0
 
+    user_info = cl.user_info_by_username(posts[0].user.username)
+    engagement_rate_reels = (total_likes_reels + total_comments_reel / len(reels)) / user_info.follower_count * 100
+
     ratio_per_100_likes_reel = (total_comments_reel / total_likes_reels) * 100 if total_likes_reels != 0 else 0
 
-    return average_likes_reels, average_comments_reel, ratio_per_100_likes_reel
+    return engagement_rate_reels, average_likes_reels, average_comments_reel, ratio_per_100_likes_reel
 
 async def categorize_likes_comments_ratio(ratio):
     if ratio == 0:
@@ -81,38 +88,7 @@ async def categorize_likes_comments_ratio(ratio):
     else:
         return "Low"
 
-def format_number(value, is_percentage=False):
-    formatted_value = None
-    if value is not None:
-        if is_percentage:
-            formatted_value = f"{round(value, 2)}%"
-        elif value < 1000:
-            formatted_value = str(round(value, 2))
-        elif value < 1000000:
-            formatted_value = f"{round(value / 1000, 2)}K"
-        else:
-            formatted_value = f"{round(value / 1000000, 2)}M"
-    return formatted_value
-
 def estimate_post_price(follower_count):
-    if follower_count < 3000:
-        estimated_cost_range = "₹250 - ₹500"    
-    elif 3000 <= follower_count < 10000:
-        estimated_cost_range = "₹500 - ₹1000"  
-    elif 10000 <= follower_count < 50000:
-        estimated_cost_range = "₹4000 - ₹10k"  
-    elif 50000 <= follower_count < 200000:
-        estimated_cost_range = "₹10k - ₹40k"  
-    elif 200000 <= follower_count < 1000000:
-        estimated_cost_range = "₹25k - ₹60k"  
-    elif 1000000 <= follower_count:
-        estimated_cost_range = "₹75k - ₹1.25L"  
-    return estimated_cost_range
-
-
-
-def estimate_reel_price(follower_count):
-
     if follower_count < 3000:
         estimated_cost_range = "₹500 - ₹1000"    
     elif 3000 <= follower_count < 10000:
@@ -125,7 +101,16 @@ def estimate_reel_price(follower_count):
         estimated_cost_range = "₹50k - ₹1.2L"  
     elif 1000000 <= follower_count:
         estimated_cost_range = "₹1.5L - ₹2.5L"  
-    return estimated_cost_range    
+    return estimated_cost_range
+
+async def fetch_user_info_async(username):
+    try:
+        user_id = cl.user_id_from_username(username)
+        return cl.user_info(user_id)
+    except Exception as e:
+        print(f"Error fetching data for {username}: {e}")
+        return None
+    
 
 def estimated_reach(posts):
 
@@ -134,25 +119,14 @@ def estimated_reach(posts):
   estimated_reach_high = max(reach_values) if reach_values else 0
   formatted_estimated_reach_low = format_number(estimated_reach_low, is_percentage=False)
   formatted_estimated_reach_high = format_number(estimated_reach_high, is_percentage=False)
-  estimated_reach_post = f"{formatted_estimated_reach_low} to {formatted_estimated_reach_high}"
-  return estimated_reach_post
+  estimated_reach = f"{formatted_estimated_reach_low} to {formatted_estimated_reach_high}"
+  return estimated_reach
 
-def estimated_reach_reel(username):
-  user_id = cl.user_id_from_username(username)
-  media = cl.user_medias(user_id, amount=18)
-  reels = [item for item in media if item.media_type == 2]
-  reach_values_reel = [reel.view_count for reel in reels if reel.view_count is not None and reel.view_count > 0]
-  estimated_reach_low_reel = min(reach_values_reel) if reach_values_reel else 0
-  estimated_reach_high_reel = max(reach_values_reel) if reach_values_reel else 0
-  formatted_estimated_reach_low_reel = format_number(estimated_reach_low_reel, is_percentage=False)
-  formatted_estimated_reach_high_reel = format_number(estimated_reach_high_reel, is_percentage=False)
-  estimated_reach_reel = f"{formatted_estimated_reach_low_reel} to {formatted_estimated_reach_high_reel}"
-  return estimated_reach_reel
 
 def categorize_sentiment(polarity):
-    if polarity > 0.03:
+    if polarity > 0.05:
         return 'Positive'
-    elif polarity < -0.03:
+    elif polarity < -0.05:
         return 'Negative'
     else:
         return 'Neutral'
@@ -199,18 +173,6 @@ async def calculate_engagement_rate(posts):
   engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
   return engagement_rate
 
-async def calculate_engagement_rate_reels(username,reels):
-  if reels == 0:
-    return 0
-  visible_likes_comments = sum(reel.like_count + reel.comment_count for reel in reels if reel.like_count is not None and reel.comment_count is not None)
-
-  if visible_likes_comments == 0:
-    return 0
-
-  follower_count = cl.user_info_by_username(username).follower_count
-  engagement_rate_reels = (visible_likes_comments / len(reels)) / follower_count * 100
-  return engagement_rate_reels
-
 async def calculate_average_posts_per_week(username, last_n_days):
     try:
         user_id = cl.user_id_from_username(username)
@@ -239,11 +201,17 @@ async def calculate_average_reels_per_week(username, last_n_days):
         if not reels:
             return 0
 
-        oldest_reel_timestamp = reels[-1].taken_at
+        current_timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
+        reels_in_last_30_days = [reel for reel in reels if (current_timestamp - reel.taken_at) < timedelta(days=30)]
+
+        if not reels_in_last_30_days:
+            return 0
+
+        oldest_reel_timestamp = reels_in_last_30_days[-1].taken_at
         oldest_reel_timestamp = int(oldest_reel_timestamp.replace(tzinfo=timezone.utc).timestamp())
         weeks_since_oldest_reel = (datetime.utcnow().timestamp() - oldest_reel_timestamp) / (7 * 24 * 3600)
 
-        average_reels_per_week = len(reels) / weeks_since_oldest_reel
+        average_reels_per_week = len(reels_in_last_30_days) / weeks_since_oldest_reel
 
         return average_reels_per_week
 
@@ -316,6 +284,20 @@ async def calculate_consistency_score_reels(username, last_n_days=50):
         print(f"An error occurred while calculating consistency score for reels: {e}")
         return 0
 
+
+def format_number(value, is_percentage=False):
+    formatted_value = None
+    if value is not None:
+        if is_percentage:
+            formatted_value = f"{round(value, 2)}%"
+        elif value < 1000:
+            formatted_value = str(round(value, 2))
+        elif value < 1000000:
+            formatted_value = f"{round(value / 1000, 2)}K"
+        else:
+            formatted_value = f"{round(value / 1000000, 2)}M"
+    return formatted_value
+
 async def get_paid_posts(posts):
     if posts == 0:
       return 0
@@ -372,39 +354,36 @@ async def get_profile(username):
         estimated_cost = estimate_post_price(follower_count)
         maximum_reach = estimated_reach(posts)
         reels = await fetch_last_n_days_reels(username)
-        engagement_rate_reels = await calculate_engagement_rate_reels(username,reels)
-        average_likes_reels, average_comments_reels, ratio_per_100_likes_reel =  await get_average_likes_and_comments_reels(reels)
+        engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel =  await get_average_likes_and_comments_reels(reels,posts)
         category_reels = await categorize_likes_comments_ratio(ratio_per_100_likes_reel)
         average_posts_per_week_reels = await calculate_average_reels_per_week(username, 30)
         consistency_score_value_reels = await calculate_consistency_score_reels(username,30)
-        estimated_cost_reel = estimate_reel_price(follower_count)
 
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels, average_posts_per_week_reels, consistency_score_value_reels, estimated_cost_reel]):
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels, average_posts_per_week_reels,consistency_score_value_reels]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
                 'username': username,
-                'engagement_rate_post': format_number(round(engagement_rate, 2), is_percentage=True),
+                'engagement_rate': format_number(round(engagement_rate, 2), is_percentage=True),
                 'followers': format_number(follower_count),
-                'average_likes_post': format_number(average_likes),
-                'average_comments_post': format_number(average_comments),
-                'likes_comments_ratio_post': format_number(round(ratio_per_100_likes, 2), is_percentage=True),
-                'likes_comments_ratio_category_post': category,
-                'paid_posts_len_post': paid_posts_len,
-                'estimated_post_price': estimated_cost,
+                'average_likes': format_number(average_likes),
+                'average_comments': format_number(average_comments),
+                'likes_comments_ratio': format_number(round(ratio_per_100_likes, 2), is_percentage=True),
+                'likes_comments_ratio_category': category,
+                'paid_posts_len': paid_posts_len,
+                'estimated_price': estimated_cost,
                 'estimated_reach': maximum_reach,
-                'post_frequency_post': format_number(round(average_posts_per_week,2), is_percentage=True),
-                'consistency_score_post': round(consistency_score_value,2),
+                'post_frequency': format_number(round(average_posts_per_week,2), is_percentage=True),
+                'consistency_score': round(consistency_score_value,2),
                 'brand_safety':most_frequent_sentiment,
-                'paid_post_engagement_rate_post': format_number(round(paid_engagement_rate, 2), is_percentage=True),
+                'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True),
                 'engagement_rate_reel': format_number(round(engagement_rate_reels,2 ),is_percentage = True),
                 'average_likes_reel': format_number(average_likes_reels),
                 'average_comments_reel': format_number(average_comments_reels),
                 'likes_comment_ratio_reel': format_number(round(ratio_per_100_likes_reel, 2),is_percentage = True),
                 'likes_comments_ratio_category_reels': category_reels,
                 'post_frequency_reels': format_number(round(average_posts_per_week_reels, 2), is_percentage = True),
-                'consistency_score_reels': round(consistency_score_value_reels, 2),
-                'estimated_reel_price': estimated_cost_reel
+                'consistency_score_reels': round(consistency_score_value_reels, 2)
             }
             json_data = json.dumps(response, ensure_ascii=False)
             return Response(json_data, content_type='application/json; charset=utf-8')
@@ -417,12 +396,7 @@ async def get_profile(username):
             return jsonify(response)
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
-            response = {
-                'success': False,
-                'message': 'User not found',
-                'data': None
-            }
-            return jsonify(response)
+            print(f"User not found: {username}")
         elif "429" in str(e):
             time.sleep(10)
         else:
@@ -439,6 +413,9 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = False)
+        ngrok.set_auth_token("2arff4tSwjTYnwyIFidgSiirvAR_455g4FP2KkaQprbcYRGcu")
+        public_url = ngrok.connect(addr="127.0.0.1:5003", proto="http", bind_tls=True)
+        print(f' * ngrok tunnel "{public_url}" -> "http://127.0.0.1:5003"')
+        app.run(port=5003)
     except Exception as e:
         print(f"An error occurred: {e}")
