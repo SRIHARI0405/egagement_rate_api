@@ -356,6 +356,7 @@ async def get_profile(username):
                 'message': 'User Profile follower range must be more than 1000',
                 'data': None
             }
+            return jsonify(response)
         posts = await fetch_last_n_days_posts(username)
         average_likes, average_comments, ratio_per_100_likes = await get_average_likes_and_comments(posts)
         engagement_rate = await calculate_engagement_rate(posts)
