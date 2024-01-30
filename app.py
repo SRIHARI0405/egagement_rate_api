@@ -1,7 +1,6 @@
 import asyncio
 from flask import Flask, jsonify, Response
 import json
-import time
 from textblob import TextBlob
 from instagrapi import Client
 from googletrans import Translator
@@ -51,7 +50,6 @@ async def get_average_likes_and_comments(posts):
     average_comments = total_comments / len(visible_comments) if visible_comments else 0
 
     ratio_per_100_likes = (total_comments / total_likes) * 100 if total_likes != 0 else 0
-
     return average_likes, average_comments, ratio_per_100_likes
 
 async def get_average_likes_and_comments_reels(reels):
@@ -64,7 +62,6 @@ async def get_average_likes_and_comments_reels(reels):
     average_comments_reel = total_comments_reel / len(reels) if reels else 0
 
     ratio_per_100_likes_reel = (total_comments_reel / total_likes_reels) * 100 if total_likes_reels != 0 else 0
-
     return average_likes_reels, average_comments_reel, ratio_per_100_likes_reel
 
 async def categorize_likes_comments_ratio(ratio):
@@ -136,11 +133,24 @@ def estimated_reach(posts):
   estimated_reach_post = f"{formatted_estimated_reach_low} to {formatted_estimated_reach_high}"
   return estimated_reach_post
 
+def max_reach_data(posts):
+    filtered_posts = [post for post in posts if post.view_count is not None and post.view_count > 0]
+    sorted_posts = sorted(filtered_posts, key=lambda x: x.view_count, reverse=True)
+    top_5_posts = sorted_posts[:5]    
+    reach_data = []
+    for post in top_5_posts:
+        reach_data.append({
+            "view_count": post.view_count,
+            "thumbnail_url": str(post.thumbnail_url)
+        })
+    
+    return reach_data
+
 
 def categorize_sentiment(polarity):
-    if polarity > 0.03:
+    if polarity > 0.02:
         return 'Positive'
-    elif polarity < -0.03:
+    elif polarity < -0.02:
         return 'Negative'
     else:
         return 'Neutral'
@@ -203,15 +213,12 @@ async def calculate_average_posts_per_week(username, last_n_days):
     try:
         user_id = cl.user_id_from_username(username)
         posts = cl.user_medias(user_id, amount=last_n_days)
-
         if not posts:
             return 0
         oldest_post_timestamp = posts[-1].taken_at
         oldest_post_timestamp = int(oldest_post_timestamp.replace(tzinfo=timezone.utc).timestamp())
         weeks_since_oldest_post = (datetime.utcnow().timestamp() - oldest_post_timestamp) / (7 * 24 * 3600)
-
         average_posts_per_week = len(posts) / weeks_since_oldest_post
-
         return average_posts_per_week
 
     except Exception as e:
@@ -223,16 +230,12 @@ async def calculate_average_reels_per_week(username, last_n_days):
         user_id = cl.user_id_from_username(username)
         media = cl.user_medias(user_id, amount=last_n_days)
         reels = [item for item in media if item.media_type == 2][:last_n_days]
-
         if not reels:
             return 0
-
         oldest_reel_timestamp = reels[-1].taken_at
         oldest_reel_timestamp = int(oldest_reel_timestamp.replace(tzinfo=timezone.utc).timestamp())
         weeks_since_oldest_reel = (datetime.utcnow().timestamp() - oldest_reel_timestamp) / (7 * 24 * 3600)
-
         average_reels_per_week = len(reels) / weeks_since_oldest_reel
-
         return average_reels_per_week
 
     except Exception as e:
@@ -261,7 +264,6 @@ async def fetch_last_30_days_reels(username, n=50):
     except Exception as e:
         print(f"An error occurred while fetching reels: {e}")
         return []
-
 
 async def calculate_consistency_score(username, last_n_days=50):
     try:
@@ -348,10 +350,17 @@ async def get_profile(username):
                 'data': None
             }
             return jsonify(response)
+        if user_info.follower_count < 1000:
+            response = {
+                'success':True,
+                'message': 'User Profile follower range must be more than 1000',
+                'data': None
+            }
         posts = await fetch_last_n_days_posts(username)
         average_likes, average_comments, ratio_per_100_likes = await get_average_likes_and_comments(posts)
         engagement_rate = await calculate_engagement_rate(posts)
         most_frequent_sentiment = analyze_sentiment_and_words(posts)
+        reach_Data = max_reach_data(posts)
         paid_engagement_rate, paid_posts_len = await calculate_paid_engagement_rate(username)
         category = await categorize_likes_comments_ratio(ratio_per_100_likes)
         average_posts_per_week = await calculate_average_posts_per_week(username, 30)
@@ -367,7 +376,7 @@ async def get_profile(username):
         consistency_score_value_reels = await calculate_consistency_score_reels(username,30)
         estimated_cost_reel = estimate_reel_price(follower_count)
 
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels, average_posts_per_week_reels, consistency_score_value_reels, estimated_cost_reel]):
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels, average_posts_per_week_reels, consistency_score_value_reels, estimated_cost_reel, ]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -392,7 +401,9 @@ async def get_profile(username):
                 'likes_comments_ratio_category_reels': category_reels,
                 'post_frequency_reels': format_number(round(average_posts_per_week_reels, 2), is_percentage = True),
                 'consistency_score_reels': round(consistency_score_value_reels, 2),
-                'estimated_reel_price': estimated_cost_reel
+                'estimated_reel_price': estimated_cost_reel,
+                'Best_Reach_Data': reach_Data
+
             }
             json_data = json.dumps(response, ensure_ascii=False)
             return Response(json_data, content_type='application/json; charset=utf-8')
@@ -405,12 +416,7 @@ async def get_profile(username):
             return jsonify(response)
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
-            response = {
-                'success': False,
-                'message': 'User not found',
-                'data': None
-            }
-            return jsonify(response)
+            print(f"User not found: {username}")
         elif "429" in str(e):
             time.sleep(10)
         else:
@@ -427,6 +433,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = False)
+        app.run(port=5003)
     except Exception as e:
         print(f"An error occurred: {e}")
