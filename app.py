@@ -388,23 +388,22 @@ async def get_profile(username):
                 'average_comments_post': format_number(average_comments),
                 'likes_comments_ratio_post': format_number(round(ratio_per_100_likes, 2), is_percentage=True),
                 'likes_comments_ratio_category_post': category,
-                'paid_posts_len_post': paid_posts_len,
+                'paid_posts_len': paid_posts_len,
                 'estimated_post_price': estimated_cost,
                 'estimated_reach': maximum_reach,
-                'post_frequency_post': format_number(round(average_posts_per_week,2), is_percentage=True),
+                'post_frequency': format_number(round(average_posts_per_week,2), is_percentage=True),
                 'consistency_score_post': round(consistency_score_value,2),
                 'brand_safety':most_frequent_sentiment,
-                'paid_post_engagement_rate_post': format_number(round(paid_engagement_rate, 2), is_percentage=True),
+                'paid_post_engagement_rate': format_number(round(paid_engagement_rate, 2), is_percentage=True),
                 'engagement_rate_reel': format_number(round(engagement_rate_reels,2 ),is_percentage = True),
                 'average_likes_reel': format_number(average_likes_reels),
                 'average_comments_reel': format_number(average_comments_reels),
                 'likes_comment_ratio_reel': format_number(round(ratio_per_100_likes_reel, 2),is_percentage = True),
                 'likes_comments_ratio_category_reels': category_reels,
-                'post_frequency_reels': format_number(round(average_posts_per_week_reels, 2), is_percentage = True),
+                'reels_frequency': format_number(round(average_posts_per_week_reels, 2), is_percentage = True),
                 'consistency_score_reels': round(consistency_score_value_reels, 2),
                 'estimated_reel_price': estimated_cost_reel,
                 'Best_Reach_Data': reach_Data
-
             }
             json_data = json.dumps(response, ensure_ascii=False)
             return Response(json_data, content_type='application/json; charset=utf-8')
