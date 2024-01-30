@@ -128,7 +128,6 @@ def estimate_reel_price(follower_count):
     return estimated_cost_range    
 
 def estimated_reach(posts):
-
   reach_values = [post.view_count for post in posts if post.view_count is not None and post.view_count > 0]
   estimated_reach_low = min(reach_values) if reach_values else 0
   estimated_reach_high = max(reach_values) if reach_values else 0
@@ -137,17 +136,6 @@ def estimated_reach(posts):
   estimated_reach_post = f"{formatted_estimated_reach_low} to {formatted_estimated_reach_high}"
   return estimated_reach_post
 
-def estimated_reach_reel(username):
-  user_id = cl.user_id_from_username(username)
-  media = cl.user_medias(user_id, amount=18)
-  reels = [item for item in media if item.media_type == 2]
-  reach_values_reel = [reel.view_count for reel in reels if reel.view_count is not None and reel.view_count > 0]
-  estimated_reach_low_reel = min(reach_values_reel) if reach_values_reel else 0
-  estimated_reach_high_reel = max(reach_values_reel) if reach_values_reel else 0
-  formatted_estimated_reach_low_reel = format_number(estimated_reach_low_reel, is_percentage=False)
-  formatted_estimated_reach_high_reel = format_number(estimated_reach_high_reel, is_percentage=False)
-  estimated_reach_reel = f"{formatted_estimated_reach_low_reel} to {formatted_estimated_reach_high_reel}"
-  return estimated_reach_reel
 
 def categorize_sentiment(polarity):
     if polarity > 0.03:
