@@ -106,7 +106,7 @@ def calculate_cpm(estimated_reach_range, estimated_cost_range):
     cost_midpoint = parse_cost(estimated_cost_range)
     reach_midpoint = parse_reach(estimated_reach_range)
     cpm = (cost_midpoint / reach_midpoint) * 1000    
-    emv = reach_midpoint * cpm * 0.05
+    emv = reach_midpoint * cpm * 0.1
     return emv
 
 async def categorize_likes_comments_ratio(ratio):
@@ -136,12 +136,10 @@ def format_number(value, is_percentage=False):
             formatted_value = f"{round(value / 1000000, 2)}M"
     return formatted_value
 
-def format_number_EMV(value, is_percentage=False):
+def format_number_EMV(value):
     formatted_value = None
     if value is not None:
-        if is_percentage:
-            formatted_value = f"{round(value, 2)}%"
-        elif value < 1000:
+        if value < 1000:
             formatted_value = str(round(value, 2))
         elif value < 1000000:
             formatted_value = f"{round(value / 1000, 2)}K"
