@@ -65,6 +65,50 @@ async def get_average_likes_and_comments_reels(reels):
     ratio_per_100_likes_reel = (total_comments_reel / total_likes_reels) * 100 if total_likes_reels != 0 else 0
     return average_likes_reels, average_comments_reel, ratio_per_100_likes_reel
 
+def parse_cost(value):
+    if '₹' not in value:
+        return 0  
+    low, high = value.split(' - ')
+    low_value = float(low.replace('₹', '').replace(',', '').replace('k', '000').replace('L', '000000'))
+    high_value = float(high.replace('₹', '').replace(',', '').replace('k', '000').replace('L', '000000'))
+    return (low_value + high_value) / 2
+
+def parse_reach(value):
+    if not value:
+        return 0  
+    if ' to ' in value:
+        low, high = value.split(' to ')
+        if 'K' in low:
+            low_value = float(low.replace(' to ', '').replace('K', '')) * 1000
+        elif 'M' in low:
+            low_value = float(low.replace(' to ', '').replace('M', '')) * 1000000
+        else:
+            low_value = float(low)
+        
+        if 'K' in high:
+            high_value = float(high.replace(' to ', '').replace('K', '')) * 1000
+        elif 'M' in high:
+            high_value = float(high.replace(' to ', '').replace('M', '')) * 1000000
+        else:
+            high_value = float(high)
+        
+        return (low_value + high_value) / 2
+    else:
+        if 'K' in value:
+            return float(value.replace('K', '')) * 1000
+        elif 'M' in value:
+            return float(value.replace('M', '')) * 1000000
+        else:
+            return float(value)
+
+
+def calculate_cpm(estimated_reach_range, estimated_cost_range):
+    cost_midpoint = parse_cost(estimated_cost_range)
+    reach_midpoint = parse_reach(estimated_reach_range)
+    cpm = (cost_midpoint / reach_midpoint) * 1000    
+    emv = reach_midpoint * cpm * 0.05
+    return emv
+
 async def categorize_likes_comments_ratio(ratio):
     if ratio == 0:
       return "No Post"
@@ -90,6 +134,19 @@ def format_number(value, is_percentage=False):
             formatted_value = f"{round(value / 1000, 2)}K"
         else:
             formatted_value = f"{round(value / 1000000, 2)}M"
+    return formatted_value
+
+def format_number_EMV(value, is_percentage=False):
+    formatted_value = None
+    if value is not None:
+        if is_percentage:
+            formatted_value = f"{round(value, 2)}%"
+        elif value < 1000:
+            formatted_value = str(round(value, 2))
+        elif value < 1000000:
+            formatted_value = f"{round(value / 1000, 2)}K"
+        else:
+            formatted_value = f"{round(value / 1000000, 2)}L"
     return formatted_value
 
 def estimate_post_price(follower_count):
@@ -342,9 +399,10 @@ async def get_profile(username):
         estimated_cost_reel = estimate_reel_price(follower_count)
         average_posts_per_week = await calculate_average_media_per_week(username, 30, media_type=1)
         average_reels_per_week = await calculate_average_media_per_week(username, 30, media_type=2)
+        estimated_EMV_posts = calculate_cpm(maximum_reach, estimated_cost)
+        estimated_EMV_reels = calculate_cpm(maximum_reach, estimated_cost_reel)
 
-
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels,  consistency_score_value_reels, estimated_cost_reel, average_reels_per_week]):
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels,  consistency_score_value_reels, estimated_cost_reel, average_reels_per_week, estimated_EMV_posts, estimated_EMV_reels]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -370,7 +428,9 @@ async def get_profile(username):
                 'reels_frequency': format_number(round(average_reels_per_week, 2), is_percentage = True),
                 'consistency_score_reels': round(consistency_score_value_reels, 2),
                 'estimated_reel_price': estimated_cost_reel,
-                'Best_Reach_Data': reach_Data
+                'Best_Reach_Data': reach_Data,
+                'EMV_post': format_number_EMV(estimated_EMV_posts),
+                'EMV_reels': format_number_EMV(estimated_EMV_reels)
             }
             json_data = json.dumps(response, ensure_ascii=False)
             return Response(json_data, content_type='application/json; charset=utf-8')
