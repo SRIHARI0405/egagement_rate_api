@@ -5,6 +5,7 @@ from textblob import TextBlob
 from instagrapi import Client
 from googletrans import Translator
 import nltk
+import time
 from langdetect import detect
 from datetime import datetime, timedelta, timezone
 from instagrapi.types import User
@@ -106,10 +107,7 @@ def estimate_post_price(follower_count):
         estimated_cost_range = "₹75k - ₹1.25L"  
     return estimated_cost_range
 
-
-
 def estimate_reel_price(follower_count):
-
     if follower_count < 3000:
         estimated_cost_range = "₹500 - ₹1000"    
     elif 3000 <= follower_count < 10000:
@@ -162,10 +160,8 @@ def translate_and_analyze_sentiment(caption_text, source_language):
     sentiment_category = categorize_sentiment(sentiment_polarity)
     return sentiment_category
 
-
 def analyze_sentiment_and_words(posts):
-    sentiment_counts = {'Positive': 0, 'Negative': 0, 'Neutral': 0}
-    
+    sentiment_counts = {'Positive': 0, 'Negative': 0, 'Neutral': 0}    
     for post in posts:
         caption_text = post.caption_text if post.caption_text else ""
         try:
@@ -179,9 +175,7 @@ def analyze_sentiment_and_words(posts):
             blob = TextBlob(caption_text)
             sentiment_polarity = blob.sentiment.polarity
             sentiment_category = categorize_sentiment(sentiment_polarity)
-
         sentiment_counts[sentiment_category] += 1
-
     most_frequent_sentiment = max(sentiment_counts, key=sentiment_counts.get)
     return most_frequent_sentiment
 
@@ -189,10 +183,8 @@ async def calculate_engagement_rate(posts):
   if posts == 0:
     return 0
   visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
-
   if visible_likes_comments == 0:
     return 0
-
   user_info = cl.user_info_by_username(posts[0].user.username)
   engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
   return engagement_rate
@@ -201,82 +193,55 @@ async def calculate_engagement_rate_reels(username,reels):
   if reels == 0:
     return 0
   visible_likes_comments = sum(reel.like_count + reel.comment_count for reel in reels if reel.like_count is not None and reel.comment_count is not None)
-
   if visible_likes_comments == 0:
     return 0
-
   follower_count = cl.user_info_by_username(username).follower_count
   engagement_rate_reels = (visible_likes_comments / len(reels)) / follower_count * 100
   return engagement_rate_reels
 
-async def calculate_average_posts_per_week(username, last_n_days):
-    try:
-        user_id = cl.user_id_from_username(username)
-        posts = cl.user_medias(user_id, amount=last_n_days)
-        if not posts:
-            return 0
-        oldest_post_timestamp = posts[-1].taken_at
-        oldest_post_timestamp = int(oldest_post_timestamp.replace(tzinfo=timezone.utc).timestamp())
-        weeks_since_oldest_post = (datetime.utcnow().timestamp() - oldest_post_timestamp) / (7 * 24 * 3600)
-        average_posts_per_week = len(posts) / weeks_since_oldest_post
-        return average_posts_per_week
-
-    except Exception as e:
-        print(f"An error occurred while calculating average posts per week: {e}")
-        return 0
-
-async def calculate_average_reels_per_week(username, last_n_days):
+async def calculate_average_media_per_week(username, last_n_days, media_type):
     try:
         user_id = cl.user_id_from_username(username)
         media = cl.user_medias(user_id, amount=last_n_days)
-        reels = [item for item in media if item.media_type == 2][:last_n_days]
-        if not reels:
+        if not media:
             return 0
-        oldest_reel_timestamp = reels[-1].taken_at
-        oldest_reel_timestamp = int(oldest_reel_timestamp.replace(tzinfo=timezone.utc).timestamp())
-        weeks_since_oldest_reel = (datetime.utcnow().timestamp() - oldest_reel_timestamp) / (7 * 24 * 3600)
-        average_reels_per_week = len(reels) / weeks_since_oldest_reel
-        return average_reels_per_week
-
+        filtered_media = [item for item in media if item.media_type == media_type][:last_n_days]
+        if not filtered_media:
+            return 0
+        oldest_media_timestamp = filtered_media[-1].taken_at
+        oldest_media_timestamp = int(oldest_media_timestamp.replace(tzinfo=timezone.utc).timestamp())
+        weeks_since_oldest_media = (datetime.utcnow().timestamp() - oldest_media_timestamp) / (7 * 24 * 3600)
+        average_media_per_week = len(filtered_media) / weeks_since_oldest_media
+        return average_media_per_week
     except Exception as e:
-        print(f"An error occurred while calculating average reels per week: {e}")
+        print(f"An error occurred while calculating average media per week: {e}")
         return 0
 
-async def fetch_last_30_days_posts(username, n=50):
-    try:
-        user_id = cl.user_id_from_username(username)
-        all_posts = cl.user_medias(user_id, amount=n)
-        current_timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
-        last_30_days_posts = [post for post in all_posts if (current_timestamp - post.taken_at) < timedelta(days=30)]
-        return last_30_days_posts
-
-    except Exception as e:
-        print(f"An error occurred while fetching posts: {e}")
-        return []
-
-async def fetch_last_30_days_reels(username, n=50):
+async def fetch_last_30_days_posts_and_reels(username, n=50):
     try:
         user_id = cl.user_id_from_username(username)
         all_media = cl.user_medias(user_id, amount=n)
         current_timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
+
+        last_30_days_posts = [media for media in all_media if (current_timestamp - media.taken_at) < timedelta(days=30)]
         last_30_days_reels = [media for media in all_media if media.media_type == 2 and (current_timestamp - media.taken_at) < timedelta(days=30)]
-        return last_30_days_reels
+        
+        return last_30_days_posts, last_30_days_reels
     except Exception as e:
-        print(f"An error occurred while fetching reels: {e}")
-        return []
+        print(f"An error occurred while fetching posts and reels: {e}")
+        return [], []
 
 async def calculate_consistency_score(username, last_n_days=50):
     try:
         user_id = cl.user_id_from_username(username)
         if user_id is None:
-          return 0
-
-        posts = await fetch_last_30_days_posts(username, n=last_n_days)
-
-        if not posts:
             return 0
 
-        total_posts = len(posts)
+        all_media = await fetch_last_30_days_posts_and_reels(username, n=last_n_days)
+        if not all_media:
+            return 0
+
+        total_posts = len(all_media[0])  
         total_time_period_days = 30
         consistency_score_post = (total_posts / total_time_period_days) * 0.9 
         return consistency_score_post
@@ -291,12 +256,12 @@ async def calculate_consistency_score_reels(username, last_n_days=50):
         if user_id is None:
             return 0
 
-        reels = await fetch_last_30_days_reels(username, n=last_n_days)
+        all_media = await fetch_last_30_days_posts_and_reels(username, n=last_n_days)
 
-        if not reels:
+        if not all_media:
             return 0
 
-        total_reels = len(reels)
+        total_reels = len(all_media[1])  
         total_time_period_days = 30
         consistency_score_reels = (total_reels / total_time_period_days) * 0.9 
 
@@ -305,6 +270,7 @@ async def calculate_consistency_score_reels(username, last_n_days=50):
     except Exception as e:
         print(f"An error occurred while calculating consistency score for reels: {e}")
         return 0
+
 
 async def get_paid_posts(posts):
     if posts == 0:
@@ -364,7 +330,6 @@ async def get_profile(username):
         reach_Data = max_reach_data(posts)
         paid_engagement_rate, paid_posts_len = await calculate_paid_engagement_rate(username)
         category = await categorize_likes_comments_ratio(ratio_per_100_likes)
-        average_posts_per_week = await calculate_average_posts_per_week(username, 30)
         consistency_score_value = await calculate_consistency_score(username,30)
         follower_count = cl.user_info_by_username(username).follower_count
         estimated_cost = estimate_post_price(follower_count)
@@ -373,11 +338,13 @@ async def get_profile(username):
         engagement_rate_reels = await calculate_engagement_rate_reels(username,reels)
         average_likes_reels, average_comments_reels, ratio_per_100_likes_reel =  await get_average_likes_and_comments_reels(reels)
         category_reels = await categorize_likes_comments_ratio(ratio_per_100_likes_reel)
-        average_posts_per_week_reels = await calculate_average_reels_per_week(username, 30)
         consistency_score_value_reels = await calculate_consistency_score_reels(username,30)
         estimated_cost_reel = estimate_reel_price(follower_count)
+        average_posts_per_week = await calculate_average_media_per_week(username, 30, media_type=1)
+        average_reels_per_week = await calculate_average_media_per_week(username, 30, media_type=2)
 
-        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels, average_posts_per_week_reels, consistency_score_value_reels, estimated_cost_reel, ]):
+
+        if all(v is not None for v in [engagement_rate, average_likes, average_comments, ratio_per_100_likes, paid_engagement_rate, paid_posts_len, category, average_posts_per_week, consistency_score_value, estimated_cost, maximum_reach, engagement_rate_reels, average_likes_reels, average_comments_reels, ratio_per_100_likes_reel, category_reels,  consistency_score_value_reels, estimated_cost_reel, average_reels_per_week]):
             response = {
                 'success': True,
                 'message': 'Data retrieved successfully',
@@ -400,7 +367,7 @@ async def get_profile(username):
                 'average_comments_reel': format_number(average_comments_reels),
                 'likes_comment_ratio_reel': format_number(round(ratio_per_100_likes_reel, 2),is_percentage = True),
                 'likes_comments_ratio_category_reels': category_reels,
-                'reels_frequency': format_number(round(average_posts_per_week_reels, 2), is_percentage = True),
+                'reels_frequency': format_number(round(average_reels_per_week, 2), is_percentage = True),
                 'consistency_score_reels': round(consistency_score_value_reels, 2),
                 'estimated_reel_price': estimated_cost_reel,
                 'Best_Reach_Data': reach_Data
@@ -416,7 +383,12 @@ async def get_profile(username):
             return jsonify(response)
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
-            print(f"User not found: {username}")
+            response = {
+                'success': False,
+                'message': 'User not found',
+                'data': None
+            }
+            return jsonify(response)
         elif "429" in str(e):
             time.sleep(10)
         else:
@@ -433,6 +405,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(port=5003)
+        app.run(debug = False)
     except Exception as e:
         print(f"An error occurred: {e}")
