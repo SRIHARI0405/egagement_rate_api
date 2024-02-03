@@ -13,54 +13,73 @@ app = Flask(__name__)
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 
+def fetch_last_n_days_reels(cl, user_id, n):
+  media = cl.user_medias(user_id, amount=n)
+  reels = [item for item in media if item.media_type == 2][:n]
+  reels.sort(key=lambda x: x.taken_at, reverse=True)
+  return reels
+
+def fetch_last_n_days_reels_url(cl, username, n):
+  user_id = cl.user_info_by_username(username)
+  media = cl.user_medias(user_id.pk, amount=n)
+  reels = [item for item in media if item.media_type == 2][:n]
+  reels.sort(key=lambda x: x.taken_at, reverse=True)
+  return reels
+
 def brand_name_usertag(reels_data):
-    usernames = []
-    for reel in reels_data:
-        for user in reel.usertags:
-            usernames.append(user.user.username)
-    return usernames
+  usernames = []
+  for reel in reels_data:
+    for user in reel.usertags:
+      usernames.append(user.user.username)
+  return usernames
 
 def brand_name_user(reels_data):
-    usernames = []
-    for reel in reels_data:
-            usernames.append(reel.user.username)
-    return usernames
+  usernames = []
+  for reel in reels_data:
+    usernames.append(reel.user.username)
+  return usernames
 
-def calculate_engagement_rate(posts, count):
-    if not posts:
-        return 0
-    visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
-    if visible_likes_comments == 0:
-        return 0
-    engagement_rate = (visible_likes_comments / len(posts)) / count * 100
-    return engagement_rate
+def calculate_engagement_rate(cl,reel_Data, posts):
+  if not posts:
+    return 0
+  visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
+  if visible_likes_comments == 0:
+    return 0
+  reel_username = reel_Data.user.username
+  user_info = cl.user_info_by_username(reel_username)
+  engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
+  return engagement_rate
 
-def calculate_engagement_rate_reels(reel_Data, count):
-    if not reel_Data:
-      return 0
-    visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count
-    if visible_likes_comments_reel == 0:
-        return 0
-    engagement_rate = (visible_likes_comments_reel/1)/count * 100
-    return engagement_rate
+def calculate_engagement_rate_reels(cl, reel_Data):
+  if not reel_Data:
+    return 0
+  visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count 
+  if visible_likes_comments_reel == 0:
+    return 0
+  reel_username = reel_Data.user.username
+  user_info = cl.user_info_by_username(reel_username)
+  engagement_rate = (visible_likes_comments_reel/1)/user_info.follower_count * 100
+  return engagement_rate
 
 
 async def get_profile(username):
   try:
-      cl = Client(proxy=proxy)
-      cl.load_settings('session-loop.json')
-      user_info = cl.user_info_by_username(username, use_cache=False)
+    cl = Client(proxy=proxy)
+    cl.load_settings('session-loop.json')
+    user_info = cl.user_info_by_username(username, use_cache=False)
   except Exception as e:
-      cl = Client(proxy=proxy)
-      cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-      with open('session-loop.json', 'r') as file:
-          data = json.load(file)
-          data['authorization_data'] = cl.authorization_data
-          modified_json = json.dumps(data)
-      with open('session-loop1.json', 'w') as file:
-          file.write(modified_json)
-      shutil.copyfile('session-loop1.json', 'session-loop.json')
-      user_info = cl.user_info_by_username(username, use_cache=False)
+    cl = Client(proxy=proxy)
+    cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+    with open('session-loop.json', 'r') as file:
+      data = json.load(file)
+      data['authorization_data'] = cl.authorization_data
+      modified_json = json.dumps(data)
+
+    with open('session-loop1.json', 'w') as file:
+      file.write(modified_json)
+
+    shutil.copyfile('session-loop1.json', 'session-loop.json')
+    user_info = cl.user_info_by_username(username, use_cache=False)
 
   try:
       if user_info.is_private:
@@ -71,21 +90,18 @@ async def get_profile(username):
           }
           return jsonify(response)
 
-      media = cl.user_medias(user_info.pk, amount=18)
-      if not media:
-
-        return {
-            'success': False,
-            'message': 'Failed to fetch reel data',
-            'data': None
-        }
+      reels_data =  fetch_last_n_days_reels(cl, user_info.pk, n=18)
       
-      reels = [item for item in media if item.media_type == 2][:18]
-      sorted_reels = sorted(reels, key=lambda x: x.taken_at, reverse=True)
+      if not reels_data:
+          return jsonify({
+              'success': False,
+              'message': 'No reels data available',
+              'data': None
+          })
 
-      engagement_rate = calculate_engagement_rate(sorted_reels, user_info.follower_count) 
-      latest_post = sorted_reels[0]
-      latest_post_engagement_rate = calculate_engagement_rate([latest_post], user_info.follower_count)
+      latest_post = reels_data[0]
+      latest_post_engagement_rate = calculate_engagement_rate(cl, [latest_post])
+      engagement_rate = calculate_engagement_rate(cl, latest_post, reels_data)
       brand_name_usertag_reel =  brand_name_usertag([latest_post])
       brand_name_user_reel =  brand_name_user([latest_post])
       likes_count = latest_post.like_count
@@ -136,6 +152,7 @@ async def get_profile(username):
       return jsonify(response)
 
 
+
 @app.route('/reel_info/<path:reel_url>')
 def get_reel_info(reel_url):
     try:
@@ -150,10 +167,17 @@ def get_reel_info(reel_url):
         reel_id_match = re.search(r'/reel/([A-Za-z0-9_-]+)', reel_url)
         if reel_id_match:
             reel_id = reel_id_match.group(1)
-
             try:
               cl = Client(proxy=proxy)
               cl.load_settings('session-loop.json')
+              user_info = cl.user_info(cl.user_id)
+              if user_info.is_private:
+                response = {
+                  'success': True,
+                  'message': 'User profile is private',
+                  'data': None
+                }
+                return jsonify(response)
               reel_data_pk = cl.media_pk_from_code(reel_id)
             except Exception as e:
               cl = Client(proxy=proxy)
@@ -166,6 +190,7 @@ def get_reel_info(reel_url):
                 file.write(modified_json)
               shutil.copyfile('session-loop1.json', 'session-loop.json')
               reel_data_pk = cl.media_pk_from_code(reel_id)
+            print(reel_data_pk)
             
             if reel_data_pk is None:
                 response = {
@@ -174,7 +199,6 @@ def get_reel_info(reel_url):
                     'data': None
                 }
                 return jsonify(response)
-            
             reel_data = cl.media_info(reel_data_pk, use_cache=False)
             if not reel_data:
                 return {
@@ -182,7 +206,6 @@ def get_reel_info(reel_url):
                     'message': 'Failed to fetch reel data',
                     'data': None
                 }
-            
             likes_count = reel_data.like_count
             comments_count = reel_data.comment_count
             view_count = reel_data.view_count
@@ -191,17 +214,9 @@ def get_reel_info(reel_url):
             brand_name_usertag_reel =  brand_name_usertag([reel_data])
             brand_name_user_reel =  brand_name_user([reel_data])
             reel_username = reel_data.user.username
-
-            user_id = cl.user_info_by_username(reel_username)
-            media = cl.user_medias(user_id.pk, amount=18)
-            reels = [item for item in media if item.media_type == 2][:18]
-            sorted_reels = sorted(reels, key=lambda x: x.taken_at, reverse=True)  
-                      
-            user_info = cl.user_info_by_username(reel_username)
-            engagement_rate_reel = calculate_engagement_rate(sorted_reels, user_info.follower_count)
-            reel_username = reel_data.user.username
-            user_info = cl.user_info_by_username(reel_username)
-            engagement_rate_reel_url =  calculate_engagement_rate_reels(reel_data, user_info.follower_count)
+            reels_data1 = fetch_last_n_days_reels_url(cl, reel_username, n=18)
+            engagement_rate_reel = calculate_engagement_rate(cl, reel_data, reels_data1)
+            engagement_rate_reel_url =  calculate_engagement_rate_reels(cl, reel_data)
             mentions = re.findall(r'@\w+', caption_text)
             hashtags = re.findall(r'#\w+', caption_text)
 
