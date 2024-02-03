@@ -100,7 +100,7 @@ async def get_profile(username):
           })
 
       latest_post = reels_data[0]
-      latest_post_engagement_rate = calculate_engagement_rate(cl, [latest_post])
+      latest_post_engagement_rate = calculate_engagement_rate_reels(cl, latest_post)
       engagement_rate = calculate_engagement_rate(cl, latest_post, reels_data)
       brand_name_usertag_reel =  brand_name_usertag([latest_post])
       brand_name_user_reel =  brand_name_user([latest_post])
