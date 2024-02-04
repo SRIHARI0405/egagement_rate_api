@@ -73,11 +73,8 @@ async def get_profile(username):
     with open('session-loop.json', 'r') as file:
       data = json.load(file)
       data['authorization_data'] = cl.authorization_data
-      modified_json = json.dumps(data)
-
     with open('session-loop1.json', 'w') as file:
-      file.write(modified_json)
-
+        json.dump(data, file, indent=4)
     shutil.copyfile('session-loop1.json', 'session-loop.json')
     user_info = cl.user_info_by_username(username, use_cache=False)
 
@@ -185,13 +182,10 @@ def get_reel_info(reel_url):
               with open('session-loop.json', 'r') as file:
                 data = json.load(file)
                 data['authorization_data'] = cl.authorization_data
-                modified_json = json.dumps(data)
               with open('session-loop1.json', 'w') as file:
-                file.write(modified_json)
+                json.dump(data, file, indent=4)
               shutil.copyfile('session-loop1.json', 'session-loop.json')
-              reel_data_pk = cl.media_pk_from_code(reel_id)
-            print(reel_data_pk)
-            
+              reel_data_pk = cl.media_pk_from_code(reel_id)            
             if reel_data_pk is None:
                 response = {
                     'success': False,
