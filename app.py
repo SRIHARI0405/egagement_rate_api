@@ -7,7 +7,7 @@ import time
 import re
 
 INSTAGRAM_USERNAME = 'loopstar154'
-INSTAGRAM_PASSWORD = 'Starbuzz123456@'
+INSTAGRAM_PASSWORD = 'Starbuzz1234567@'
 
 app = Flask(__name__)
 
