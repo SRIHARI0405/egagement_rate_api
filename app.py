@@ -61,7 +61,7 @@ def calculate_engagement_rate_reels(cl, reel_Data):
   engagement_rate = (visible_likes_comments_reel/1)/user_info.follower_count * 100
   return engagement_rate
 
-niches = ['cinema& Actor/actresses', 'Sports Person', 'Politics', 'Photographer', 'Art/Artist', 'Food', 'Fitness', 'Lifestyle', 'Fashion', 'Beauty', 'Health', 'Gaming', 'Travel', 'Sustentability', 'Parent', 'Finance', 'Animal', 'Tech','Cars & Motorbikes']
+niches = ['cinema& Actor/actresses', 'Sports Person', 'Politics', 'Photographer', 'Art/Artist', 'Food', 'Fitness', 'Lifestyle', 'Fashion', 'Beauty', 'Health', 'Gaming', 'Travel', 'Sustentability', 'Parent', 'Finance', 'Animal', 'Tech','Cars & Motorbikes','Marketing']
 hashtags = {
     'Lifestyle': ['#lifestyleinfluencer','#lifestyles','#lifestyle','#lifestylemodel', '#happiness','#lifestyleblogger','#lifestylephotography','#lifestyleblog','#lifestylechange','#luxurylifestyle','#lifestylechange'],
     'Fashion': ['#fashioninfluencer','#fashion', '#outfit', '#style', '#ootd', '#instaFashion', '#fashionBlogger', '#vintage', '#fashionista', '#streetStyle', '#stylish', '#instaStyle','#lifestyleinfluencer','#fashionblogger','#fashionstyle','#fashionweek','#fashiondesigner','#fashionnova','#fashionable','#fashionillustration','#fashiontrends','#fashioninspiration','#fashiongoals','#fashionsketch'],
@@ -69,7 +69,7 @@ hashtags = {
     'Gaming': ['#gaminginfluncer','#gamingstation','#gaming', '#gamingcommunity','#gamer','#gamers','#gamingsetup','#gaminglife','#gamingmemes','#gamingsetups','#gamingposts','#gamingpc','#gamingroom','#gamingclips','#gamingphotography','#gamingchair','#gamingislife','#videogames', '#totalgaming','#pcgamers','#gamersetup','#gamersunite','#gamerslife','#games','#gamedev','#gamedesign','#gamer4life','#gamedevelopment','#gamesworkshop','#gamersonly'],
     'Fitness': ['#fitnessinfluencer','#fitness', '#fitnessmodel','#fitnessgirl','#fitnessjourney','#fitnessmotivation','#fitnesslife','#fitnessgoals','#fitnessfreak','#fitnessfood','#fitnessgear','#fitnesstips','#fitnessbody','#fitnessphysique','#fitnesscoach','#fitnesstransformation','#fitnesspageforall','#fitnesschallenge','#fitnesslove','#fitnessworkouts','#fitnessjunkie','#gym', '#fit', '#fitnessmotivation', '#workout', '#bodybuilding', '#training', '#fitfam','#protein','#gymmotivation','#gymrat','#gymgirl','#gymlifestyle','#gymnastics','#gymmemes'],
     'Health': ['#healthyinfluencer', '#healthy', '#healthyhair','#skincare','#healthylofestyle','#healthyfood','#healthyeating','#healthyreceipes','#healthylife','#healthyliving','#healthlifestyle','#healthrecipes','#healthbreakfast','#healthcoach','#healthybreakfast','#health','#healthcoach','#healthyeating','#healthylife','#healthyskin','#healthyhair','#mentalhealth'],
-    'Travel': ['#travelinfluencer','#travelinfluencers','#travelinfluencers','#travel', '#traveltheworld','#travelphoto','#travelgram', '#travelblogger', '#travelphotography', '#travelling', '#travelblog','#traveltheworld','#travelphoto','travellife','#travelpics','#travelcouple','#travelmore','#travelers', '#travelguide','#traveldiaries','#travelphoto','#travelpic','#travelph','#travelislife','#travelwithme','#travelrealindia','#travelagent','#travelindia','#travelinspiration'],
+    'Travel': ['#travelinfluencer','#travelinfluencers','#travelinfluencers', '#traveltheworld','#travelphoto','#travelgram', '#travelblogger', '#travelphotography', '#travelling', '#travelblog','#traveltheworld','#travelphoto','travellife','#travelpics','#travelcouple','#travelmore','#travelers', '#travelguide','#traveldiaries','#travelphoto','#travelpic','#travelph','#travelislife','#travelwithme','#travelrealindia','#travelagent','#travelindia','#travelinspiration'],
     'Food': ['#foodinfluencer','foodinfluencers','#foodinfluencerph','#foodinfluencermarketing','#food', '#foodblogger','#foodblog','#foodlovers','#foodstyling','#foodie','#foodstyle','#foodheaven','#foodnetwork','#foodoftalkindia','#foodoftheday','#foodforlife','#foodfreedom', '#healthyfood','#foodlovers','#foodstylist','#foodlove','#foodart'],
     'Sustainability ': ['#sustainability','#sustainabilityinfluencer','#sustainabilitymatters', '#sustainabilitytips','#sustainabilityeducation','#sustainabilityblogger','#sustainabilityinfluncer' '#greenwashing', '#climatechange', '#ecofriendly', '#recycle', '##sustainablefashion', '#sustainableliving', '#zerowaste', '#nature', '#climatechange','#reuse','#environment','#eco','#reduce','#cleanenergy','#greenliving'],
     'Parent': ['#parentslove','#parentstips','#parentinghacks','#parentinganak','#parentinglife','#parentingmemes','#parentingquotes','#parents','#parentstobe','#parentslife','#parentingtips','#Childmonitoring','#smartparenting','#DigitalParenting','#childsafety','#parentssupportingparent','#parentsweekend','#momhealthcare','#mominfluencer','#mom', '#mother', '#momlife', '#parentslove','#parentsbelike','#parentsupport','#dad','#dadlife','#dadjokes','#dadbod'],
@@ -77,7 +77,8 @@ hashtags = {
     '#photography': ['#photographyinfluencer','#photographyeveryday','#photographylovers','#photographyart','#photographyislife','#photographysouls','#photographylife','#fashionphotography','#wildlifephotography','#mobilephotography','#dronephotography','#indianphotography', '#shoot','#photographers','#Photographerlife'],
     'Pets': ['#animalinfluence','#animalinfluencer','#animalinfluences','#animalinfluencers','#pet','#petinfluncer','#pets','#petslovers','petfriendly','petshop','petoftheday','petphotography','#petgrommer','#petshop','#petparent','#petoriginal','#cats', '#dogs', '#petsitting', '#petstore', '#petsarefamily', '#petsmart', '#petsitter', '#petslover'],
     'Tech': ['#techinfluncer','#tech','#gadgets', '#gadgetstore','#gadgetsnews','#amazongadgets','#coolgadgets''#techno','#techhouse','#technogadgets','#techstartup','#techsupport','#techcompany','#techjobs','#technologytrends' '#technology', '#innovation', '#technofamily', '#technolover', '#vettech', '#techsupport','#techgadgets','#techblogger','#technovibes'],
-    'Cars & Motorbikes': ['#car','#cars','#carinfluncer','#cars247','#carsdaily','#carspotter','#carsofinsta','#carlovers','#carswithoutlimits','#carshow','#carcare','#carphotography','#carlifestyle','#carsforsale','#carsandcoffee','#carsofinstagram','#sportscar', '#sportscars', '#ride', '#rider', '#bikeinstagram', '#instabike','#motorcycle','#biker','#bikelife','#bikeride','#bike','#bikelife','#bikeride','#bikerlife','#bikergirls','#bikeparking','#biketour','#bikers','#bikelovers','#bikersofinstagram','#instamotorcycle','#sportbike','#superbike','#bikeinfluencer','#bikeinfluence','#speed', '#vehicle']
+    'Cars & Motorbikes': ['#car','#cars','#carinfluncer','#cars247','#carsdaily','#carspotter','#carsofinsta','#carlovers','#carswithoutlimits','#carshow','#carcare','#carphotography','#carlifestyle','#carsforsale','#carsandcoffee','#carsofinstagram','#sportscar', '#sportscars', '#ride', '#rider', '#bikeinstagram', '#instabike','#motorcycle','#biker','#bikelife','#bikeride','#bike','#bikelife','#bikeride','#bikerlife','#bikergirls','#bikeparking','#biketour','#bikers','#bikelovers','#bikersofinstagram','#instamotorcycle','#sportbike','#superbike','#bikeinfluencer','#bikeinfluence','#speed', '#vehicle'],
+    'Advertising/Marketing': ['#marketing','#marketingdigital','#marketingstrategy','#marketingtips','#marketingonline','#marketingagency','#marketingconsultant','#marketingconsultants','#marketingtools','#marketingideas',]
 }
 
 async def get_profile(username):
@@ -165,6 +166,7 @@ async def get_profile(username):
           }
 
       return jsonify(response)
+
 
 
 @app.route('/reel_info/<path:reel_url>')
@@ -275,7 +277,7 @@ def get_reel_info(reel_url):
             }
             return jsonify(response)
 
-@app.route('/category/<username>')
+@app.route('/user/<username>')
 def get_user_niches(username):
   try:
     try:
@@ -305,7 +307,7 @@ def get_user_niches(username):
 
         if user_info.username:
             username_lower = user_info.username.lower()
-            found_niches_username = [niche for niche in niches if niche.lower() in username_lower]
+            found_niches_username = [niche for niche in niches if niche.lower() in username]
             final_niches.extend(found_niches_username)
 
         if user_info.category:
@@ -334,6 +336,8 @@ def get_user_niches(username):
                 final_niches.append('Photographer')
             elif any(keyword in category_lower for keyword in ['cars','motorcycle dealership']):
                 final_niches.append('Cars & Motorbikes')
+            elif any(keyword in category_lower for keyword in ['advertising/marketing','advertising','marketing']):
+                final_niches.append('Marketing')
             elif any(keyword in category_lower for keyword in ['chef']):
                 final_niches.append('Food')
             elif 'bakery' in category_lower:
