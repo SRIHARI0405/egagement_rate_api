@@ -221,7 +221,7 @@ def get_reel_info(reel_url):
                 }
             likes_count = reel_data.like_count
             comments_count = reel_data.comment_count
-            view_count = reel_data.view_count
+            play_count = reel_data.play_count
             thumbnail_urls = str(reel_data.thumbnail_url)
             caption_text = reel_data.caption_text
             brand_name_usertag_reel =  brand_name_usertag([reel_data])
@@ -239,7 +239,7 @@ def get_reel_info(reel_url):
                 'reel_info': {
                     'likes_count': likes_count,
                     'comments_count': comments_count,
-                    'view_count': view_count,
+                    'view_count': play_count,
                     'thumbnail_urls': thumbnail_urls,
                     'caption_text': caption_text,
                     'mentions': mentions,
@@ -307,7 +307,7 @@ def get_user_niches(username):
 
         if user_info.username:
             username_lower = user_info.username.lower()
-            found_niches_username = [niche for niche in niches if niche.lower() in username]
+            found_niches_username = [niche for niche in niches if niche.lower() in username_lower]
             final_niches.extend(found_niches_username)
 
         if user_info.category:
@@ -372,7 +372,16 @@ def get_user_niches(username):
 
         final_niches = list(set(final_niches))
 
-        return jsonify({"username": username, "niches": final_niches}), 200
+        response = {
+           'success': True,
+           'message': 'Reel data retrieved successfully',
+           'data': {
+              'username': username,
+              'niches' : final_niches
+           }
+        }
+        json_data = json.dumps(response, ensure_ascii=False)
+        return Response(json_data, content_type='application/json; charset=utf-8')
 
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
@@ -392,7 +401,12 @@ def get_user_niches(username):
 
         return jsonify(response)
   except Exception as e:
-    return jsonify({"error": str(e)}), 500
+    response = {
+        'success': False,
+        'message': f"{e}",
+        'data': None
+    }
+    return jsonify(response)
   
 
 @app.route('/profile_info/<username>')
