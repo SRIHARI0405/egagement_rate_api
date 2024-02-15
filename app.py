@@ -36,14 +36,11 @@ def brand_name_user(media_data):
 def calculate_engagement_rate(cl,reel_Data, posts):
   if not posts:
     return 0
-  print(len(posts))
   visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
-  print(visible_likes_comments)
   if visible_likes_comments == 0:
     return 0
   reel_username = reel_Data.user.username
   user_info = cl.user_info_by_username(reel_username)
-  print(user_info.follower_count)
   engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
   return engagement_rate
 
@@ -140,8 +137,6 @@ async def get_post_info(post_url):
 
             likes_count = post_data.like_count
             comments_count = post_data.comment_count
-            print(post_data.play_count)
-            print(post_data)
             view_count = post_data.play_count if post_data.play_count is not None and post_data.play_count != 0 else post_data.view_count
             caption_text = post_data.caption_text
             brand_name_usertag_post = brand_name_usertag([post_data])
