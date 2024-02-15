@@ -20,47 +20,47 @@ def fetch_last_n_days_reels(cl, user_id, n):
   reels.sort(key=lambda x: x.taken_at, reverse=True)
   return reels
 
-async def fetch_last_n_days_reels_url(cl, username, n):
-    user_id = cl.user_info_by_username(username)
-    media = cl.user_medias(user_id.pk, amount=n)
-    reels = [item for item in media if item.media_type == 2][:n]
-    reels.sort(key=lambda x: x.taken_at, reverse=True)
-    return reels
+def fetch_last_n_days_reels_url(cl, username, n):
+  user_id = cl.user_info_by_username(username)
+  media = cl.user_medias(user_id.pk, amount=n)
+  reels = [item for item in media if item.media_type == 2][:n]
+  reels.sort(key=lambda x: x.taken_at, reverse=True)
+  return reels
 
-async def brand_name_usertag(reels_data):
-    usernames = []
-    for reel in reels_data:
-        for user in reel.usertags:
-            usernames.append(user.user.username)
-    return usernames
+def brand_name_usertag(reels_data):
+  usernames = []
+  for reel in reels_data:
+    for user in reel.usertags:
+      usernames.append(user.user.username)
+  return usernames
 
-async def brand_name_user(reels_data):
-    usernames = []
-    for reel in reels_data:
-        usernames.append(reel.user.username)
-    return usernames
+def brand_name_user(reels_data):
+  usernames = []
+  for reel in reels_data:
+    usernames.append(reel.user.username)
+  return usernames
 
-async def calculate_engagement_rate(cl, reel_Data, posts):
-    if not posts:
-        return 0
-    visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
-    if visible_likes_comments == 0:
-        return 0
-    reel_username = reel_Data.user.username
-    user_info = cl.user_info_by_username(reel_username)
-    engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
-    return engagement_rate
+def calculate_engagement_rate(cl,reel_Data, posts):
+  if not posts:
+    return 0
+  visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
+  if visible_likes_comments == 0:
+    return 0
+  reel_username = reel_Data.user.username
+  user_info = cl.user_info_by_username(reel_username)
+  engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
+  return engagement_rate
 
-async def calculate_engagement_rate_reels(cl, reel_Data):
-    if not reel_Data:
-        return 0
-    visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count 
-    if visible_likes_comments_reel == 0:
-        return 0
-    reel_username = reel_Data.user.username
-    user_info = cl.user_info_by_username(reel_username)
-    engagement_rate = (visible_likes_comments_reel/1)/user_info.follower_count * 100
-    return engagement_rate
+def calculate_engagement_rate_reels(cl, reel_Data):
+  if not reel_Data:
+    return 0
+  visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count 
+  if visible_likes_comments_reel == 0:
+    return 0
+  reel_username = reel_Data.user.username
+  user_info = cl.user_info_by_username(reel_username)
+  engagement_rate = (visible_likes_comments_reel/1)/user_info.follower_count * 100
+  return engagement_rate
 
 niches = ['cinema& Actor/actresses', 'Sports Person', 'Politics', 'Photographer', 'Art/Artist', 'Food', 'Fitness', 'Lifestyle', 'Fashion', 'Beauty', 'Health', 'Gaming', 'Travel', 'Sustentability', 'Parent', 'Finance', 'Animal', 'Tech','Cars & Motorbikes','Marketing']
 hashtags = {
