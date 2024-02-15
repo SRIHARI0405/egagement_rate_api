@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, Response
 import json
 import shutil
+import multiprocessing
 from instagrapi import Client
 import asyncio
 import time
@@ -168,9 +169,7 @@ async def get_profile(username):
       return jsonify(response)
 
 
-
-@app.route('/reel_info/<path:reel_url>')
-def get_reel_info(reel_url):
+def process_reel_info(queue, reel_url):
     try:
         if not reel_url.startswith('https://www.instagram.com/reel/'):
             response = {
@@ -178,7 +177,8 @@ def get_reel_info(reel_url):
                 'message': 'Invalid reel URL format',
                 'data': None
             }
-            return jsonify(response)
+            queue.put(response)
+            return
 
         reel_id_match = re.search(r'/reel/([A-Za-z0-9_-]+)', reel_url)
         if reel_id_match:
@@ -193,7 +193,8 @@ def get_reel_info(reel_url):
                   'message': 'User profile is private',
                   'data': None
                 }
-                return jsonify(response)
+                queue.put(response)
+                return
               reel_data_pk = cl.media_pk_from_code(reel_id)
             except Exception as e:
               cl = Client(proxy=proxy)
@@ -211,14 +212,17 @@ def get_reel_info(reel_url):
                     'message': 'Invalid reel URL',
                     'data': None
                 }
-                return jsonify(response)
+                queue.put(response)
+                return
             reel_data = cl.media_info(reel_data_pk, use_cache=False)
             if not reel_data:
-                return {
+                response = {
                     'success': False,
                     'message': 'Failed to fetch reel data',
                     'data': None
                 }
+                queue.put(response)
+                return
             likes_count = reel_data.like_count
             comments_count = reel_data.comment_count
             play_count = reel_data.play_count
@@ -250,8 +254,7 @@ def get_reel_info(reel_url):
                 },
                 'engagement_rate': round(engagement_rate_reel, 2)
             }
-            json_data = json.dumps(response, ensure_ascii=False)
-            return Response(json_data, content_type='application/json; charset=utf-8')
+            queue.put(response)
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
             response = {
@@ -259,7 +262,7 @@ def get_reel_info(reel_url):
                 'message': 'User not found',
                 'data': None
             }
-            return jsonify(response)
+            queue.put(response)
         elif "429" in str(e):
             time.sleep(10)
         elif "Invalid media_id" in str(e):
@@ -268,14 +271,24 @@ def get_reel_info(reel_url):
               'message': 'Invalid URL provided. Please provide a valid URL.',
               'data': None
           }
-          return jsonify(response)
+          queue.put(response)
         else:
             response = {
                 'success': False,
                 'message': f"{e}",
                 'data': None
             }
-            return jsonify(response)
+            queue.put(response)
+
+@app.route('/reel_info/<path:reel_url>')
+def get_reel_info(reel_url):
+    queue = multiprocessing.Queue()
+    process = multiprocessing.Process(target=process_reel_info, args=(queue, reel_url))
+    process.start()
+    process.join()
+    response = queue.get()
+    json_data = json.dumps(response, ensure_ascii=False)
+    return Response(json_data, content_type='application/json; charset=utf-8')
 
 @app.route('/user/<username>')
 def get_user_niches(username):
