@@ -11,6 +11,7 @@ pillow==8.1.1
 textblob
 nltk==3.6.5
 Flask[async]
+asgiref==3.7.2
 googletrans==4.0.0-rc1
 langdetect==1.0.9
 urllib3==1.25.11
