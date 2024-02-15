@@ -168,68 +168,75 @@ async def get_profile(username):
 
       return jsonify(response)
 
-async def process_reel_info(reel_url):
+def process_reel_info(queue, reel_url):
     try:
         if not reel_url.startswith('https://www.instagram.com/reel/'):
-            return {
+            response = {
                 'success': False,
                 'message': 'Invalid reel URL format',
                 'data': None
             }
+            queue.put(response)
+            return
 
         reel_id_match = re.search(r'/reel/([A-Za-z0-9_-]+)', reel_url)
         if reel_id_match:
             reel_id = reel_id_match.group(1)
             try:
-                cl = Client()
-                cl.load_settings('session-loop.json')
-                user_info = cl.user_info(cl.user_id)
-                if user_info.is_private:
-                    return {
-                        'success': True,
-                        'message': 'User profile is private',
-                        'data': None
-                    }
-                reel_data_pk = cl.media_pk_from_code(reel_id)
+              cl = Client(proxy=proxy)
+              cl.load_settings('session-loop.json')
+              user_info = cl.user_info(cl.user_id)
+              if user_info.is_private:
+                response = {
+                  'success': True,
+                  'message': 'User profile is private',
+                  'data': None
+                }
+                queue.put(response)
+                return
+              reel_data_pk = cl.media_pk_from_code(reel_id)
             except Exception as e:
-                cl = Client()
-                cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-                with open('session-loop.json', 'r') as file:
-                    data = json.load(file)
-                    data['authorization_data'] = cl.authorization_data
-                with open('session-loop1.json', 'w') as file:
-                    json.dump(data, file, indent=4)
-                shutil.copyfile('session-loop1.json', 'session-loop.json')
-                reel_data_pk = cl.media_pk_from_code(reel_id)
-                
+              cl = Client(proxy=proxy)
+              cl.login(INSTAGRAM_USERNAME,INSTAGRAM_PASSWORD)
+              with open('session-loop.json', 'r') as file:
+                data = json.load(file)
+                data['authorization_data'] = cl.authorization_data
+              with open('session-loop1.json', 'w') as file:
+                json.dump(data, file, indent=4)
+              shutil.copyfile('session-loop1.json', 'session-loop.json')
+              reel_data_pk = cl.media_pk_from_code(reel_id)            
             if reel_data_pk is None:
-                return {
+                response = {
                     'success': False,
                     'message': 'Invalid reel URL',
                     'data': None
                 }
+                queue.put(response)
+                return
             reel_data = cl.media_info(reel_data_pk, use_cache=False)
             if not reel_data:
-                return {
+                response = {
                     'success': False,
                     'message': 'Failed to fetch reel data',
                     'data': None
                 }
+                queue.put(response)
+                return
             likes_count = reel_data.like_count
             comments_count = reel_data.comment_count
             play_count = reel_data.play_count
             thumbnail_urls = str(reel_data.thumbnail_url)
             caption_text = reel_data.caption_text
-            brand_name_usertag_reel = await brand_name_usertag([reel_data])
-            brand_name_user_reel = await brand_name_user([reel_data])
+            brand_name_usertag_reel =  brand_name_usertag([reel_data])
+            brand_name_user_reel =  brand_name_user([reel_data])
             reel_username = reel_data.user.username
-            reels_data1 = await fetch_last_n_days_reels_url(cl, reel_username, n=18)
-            engagement_rate_reel = await calculate_engagement_rate(cl, reel_data, reels_data1)
-            engagement_rate_reel_url = await calculate_engagement_rate_reels(cl, reel_data)
+            reels_data1 = fetch_last_n_days_reels_url(cl, reel_username, n=18)
+            engagement_rate_reel = calculate_engagement_rate(cl, reel_data, reels_data1)
+            engagement_rate_reel_url =  calculate_engagement_rate_reels(cl, reel_data)
             mentions = re.findall(r'@\w+', caption_text)
             hashtags = re.findall(r'#\w+', caption_text)
 
-            return {
+            response = {
                 'success': True,
                 'message': 'Reel data retrieved successfully',
                 'reel_info': {
@@ -246,31 +253,39 @@ async def process_reel_info(reel_url):
                 },
                 'engagement_rate': round(engagement_rate_reel, 2)
             }
+            queue.put(response)
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
-            return {
+            response = {
                 'success': False,
                 'message': 'User not found',
                 'data': None
             }
+            queue.put(response)
         elif "429" in str(e):
             time.sleep(10)
         elif "Invalid media_id" in str(e):
-            return {
-                'success': False,
-                'message': 'Invalid URL provided. Please provide a valid URL.',
-                'data': None
-            }
+          response = {
+              'success': False,
+              'message': 'Invalid URL provided. Please provide a valid URL.',
+              'data': None
+          }
+          queue.put(response)
         else:
-            return {
+            response = {
                 'success': False,
                 'message': f"{e}",
                 'data': None
             }
+            queue.put(response)
 
 @app.route('/reel_info/<path:reel_url>')
-async def get_reel_info(reel_url):
-    response = await process_reel_info(reel_url)
+def get_reel_info(reel_url):
+    queue = multiprocessing.Queue()
+    process = multiprocessing.Process(target=process_reel_info, args=(queue, reel_url))
+    process.start()
+    process.join()
+    response = queue.get()
     json_data = json.dumps(response, ensure_ascii=False)
     return Response(json_data, content_type='application/json; charset=utf-8')
 
