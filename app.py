@@ -1,10 +1,11 @@
-from flask import Flask, jsonify, Response
+from flask import Flask, jsonify
 import json
 import shutil
 from instagrapi import Client
 import asyncio
 import time
 import re
+import queue  
 
 INSTAGRAM_USERNAME = 'loopstar154'
 INSTAGRAM_PASSWORD = 'Starbuzz1234567@'
@@ -13,12 +14,14 @@ app = Flask(__name__)
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 
+url_queue = asyncio.Queue(maxsize=10)
+
 def fetch_last_n_days_posts(cl, username, n):
-  user_id = cl.user_id_from_username(username)
-  media = cl.user_medias(user_id, amount=n)
-  reels = [item for item in media if item.media_type == 2 or item.media_type !=2][:n]
-  reels.sort(key=lambda x: x.taken_at, reverse=True)
-  return reels
+    user_id = cl.user_id_from_username(username)
+    media = cl.user_medias(user_id, amount=n)
+    reels = [item for item in media if item.media_type == 2 or item.media_type !=2][:n]
+    reels.sort(key=lambda x: x.taken_at, reverse=True)
+    return reels
 
 def brand_name_usertag(media_data):
     usernames = []
@@ -34,56 +37,55 @@ def brand_name_user(media_data):
     return usernames
 
 def calculate_engagement_rate(cl,reel_Data, posts):
-  if not posts:
-    return 0
-  visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
-  if visible_likes_comments == 0:
-    return 0
-  reel_username = reel_Data.user.username
-  user_info = cl.user_info_by_username(reel_username)
-  engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
-  return engagement_rate
+    if not posts:
+        return 0
+    visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
+    if visible_likes_comments == 0:
+        return 0
+    reel_username = reel_Data.user.username
+    user_info = cl.user_info_by_username(reel_username)
+    engagement_rate = (visible_likes_comments / len(posts)) / user_info.follower_count * 100
+    return engagement_rate
 
 def calculate_engagement_rate_reels(cl, reel_Data):
-  if not reel_Data:
-    return 0
-  visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count 
-  if visible_likes_comments_reel == 0:
-    return 0
-  reel_username = reel_Data.user.username
-  user_info = cl.user_info_by_username(reel_username)
-  engagement_rate = (visible_likes_comments_reel/1)/user_info.follower_count * 100
-  return engagement_rate
+    if not reel_Data:
+        return 0
+    visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count 
+    if visible_likes_comments_reel == 0:
+        return 0
+    reel_username = reel_Data.user.username
+    user_info = cl.user_info_by_username(reel_username)
+    engagement_rate = (visible_likes_comments_reel/1)/user_info.follower_count * 100
+    return engagement_rate
 
-async def get_media_info(media_url):
+async def process_urls():
+    results = []
     try:
-        if not media_url.startswith('https://www.instagram.com'):
-            response = {
-                'success': False,
-                'message': 'Invalid media URL format',
-                'data': None
-            }
-            return jsonify(response)
-
-        if 'instagram.com/p/' in media_url:
-            return await get_post_info(media_url)
-        elif 'instagram.com/reel/' in media_url:
-            return await get_reel_info(media_url)
-        else:
-            response = {
-                'success': False,
-                'message': 'Unsupported media type',
-                'data': None
-            }
-            return jsonify(response)
+        cl = Client(proxy=proxy)
+        cl.load_settings('session-loop.json')
+        while not url_queue.empty():
+            url = await url_queue.get()
+            if 'instagram.com/p/' in url:
+                result = await get_post_info(url, cl)
+            elif 'instagram.com/reel/' in url:
+                result = await get_reel_info(url, cl)
+            else:
+                result = {
+                    'success': False,
+                    'message': 'Unsupported media type',
+                    'data': None
+                }
+            results.append(result)
+            url_queue.task_done()  
     except Exception as e:
-        return jsonify({
+        results.append({
             'success': False,
             'message': str(e),
             'data': None
         })
+    return results
 
-async def get_post_info(post_url):
+async def get_post_info(post_url, cl):
     try:
         if not post_url.startswith('https://www.instagram.com'):
             response = {
@@ -91,14 +93,12 @@ async def get_post_info(post_url):
                 'message': 'Invalid post URL format',
                 'data': None
             }
-            return jsonify(response)
+            return response
 
         post_id_match = re.search(r'/p/([A-Za-z0-9_-]+)', post_url)
         if post_id_match:
             post_id = post_id_match.group(1)
             try:
-                cl = Client(proxy=proxy)
-                cl.load_settings('session-loop.json')
                 user_info = cl.user_info(cl.user_id)
                 if user_info.is_private:
                     response = {
@@ -106,10 +106,9 @@ async def get_post_info(post_url):
                         'message': 'User profile is private',
                         'data': None
                     }
-                    return jsonify(response)
+                    return response
                 post_data_pk = cl.media_pk_from_code(post_id)
             except Exception as e:
-                cl = Client(proxy=proxy)
                 cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
                 with open('session-loop.json', 'r') as file:
                     data = json.load(file)
@@ -125,7 +124,7 @@ async def get_post_info(post_url):
                     'message': 'Invalid post URL',
                     'data': None
                 }
-                return jsonify(response)
+                return response
 
             post_data = cl.media_info(post_data_pk, use_cache=False)
             if not post_data:
@@ -164,8 +163,7 @@ async def get_post_info(post_url):
                 },
                 'engagement_rate': round(engagement_rate_post, 2)
             }
-            json_data = json.dumps(response, ensure_ascii=False)
-            return Response(json_data, content_type='application/json; charset=utf-8')
+            return response
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
             response = {
@@ -173,7 +171,7 @@ async def get_post_info(post_url):
                 'message': 'User not found',
                 'data': None
             }
-            return jsonify(response)
+            return response
         elif "429" in str(e):
             time.sleep(10)
         elif "Invalid media_id" in str(e):
@@ -182,16 +180,16 @@ async def get_post_info(post_url):
                 'message': 'Invalid URL provided. Please provide a valid URL.',
                 'data': None
             }
-            return jsonify(response)
+            return response
         else:
             response = {
                 'success': False,
                 'message': f"{e}",
                 'data': None
             }
-            return jsonify(response)
+            return response
 
-async def get_reel_info(reel_url):
+async def get_reel_info(reel_url, cl):
     try:
         if not reel_url.startswith('https://www.instagram.com'):
             response = {
@@ -199,14 +197,12 @@ async def get_reel_info(reel_url):
                 'message': 'Invalid reel URL format',
                 'data': None
             }
-            return jsonify(response)
+            return response
 
         reel_id_match = re.search(r'/reel/([A-Za-z0-9_-]+)', reel_url)
         if reel_id_match:
             reel_id = reel_id_match.group(1)
             try:
-                cl = Client(proxy=proxy)
-                cl.load_settings('session-loop.json')
                 user_info = cl.user_info(cl.user_id)
                 if user_info.is_private:
                     response = {
@@ -214,10 +210,9 @@ async def get_reel_info(reel_url):
                         'message': 'User profile is private',
                         'data': None
                     }
-                    return jsonify(response)
+                    return response
                 reel_data_pk = cl.media_pk_from_code(reel_id)
             except Exception as e:
-                cl = Client(proxy=proxy)
                 cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
                 with open('session-loop.json', 'r') as file:
                     data = json.load(file)
@@ -233,7 +228,7 @@ async def get_reel_info(reel_url):
                     'message': 'Invalid reel URL',
                     'data': None
                 }
-                return jsonify(response)
+                return response
 
             reel_data = cl.media_info(reel_data_pk, use_cache=False)
             if not reel_data:
@@ -272,8 +267,7 @@ async def get_reel_info(reel_url):
                 },
                 'engagement_rate': round(engagement_rate_reel, 2)
             }
-            json_data = json.dumps(response, ensure_ascii=False)
-            return Response(json_data, content_type='application/json; charset=utf-8')
+            return response
     except Exception as e:
         if "404 Client Error: Not Found" in str(e):
             response = {
@@ -281,7 +275,7 @@ async def get_reel_info(reel_url):
                 'message': 'User not found',
                 'data': None
             }
-            return jsonify(response)
+            return response
         elif "429" in str(e):
             time.sleep(10)
         elif "Invalid media_id" in str(e):
@@ -290,18 +284,25 @@ async def get_reel_info(reel_url):
                 'message': 'Invalid URL provided. Please provide a valid URL.',
                 'data': None
             }
-            return jsonify(response)
+            return response
         else:
             response = {
                 'success': False,
                 'message': f"{e}",
                 'data': None
             }
-            return jsonify(response)
+            return response
 
-@app.route('/media_info/<path:media_url>')
-def get_media_route_url(media_url):
-    return asyncio.run(get_media_info(media_url))
+@app.route('/media_info/<path:urls>')
+def get_media_info_route(urls):
+    urls_list = urls.split(',')
+    for url in urls_list:
+        if url_queue.qsize() < 10:
+            url_queue.put_nowait(url)
+        else:
+            return jsonify({'success': False, 'message': 'URL processing limit exceeded'})
+    results = asyncio.run(process_urls())
+    return jsonify(results)
 
 if __name__ == '__main__':
     try:
