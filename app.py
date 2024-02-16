@@ -69,6 +69,7 @@ async def process_urls(urls):
             url = url_data['link']
             utc_now = datetime.datetime.now(pytz.utc)
             utc_datetime_str = utc_now.strftime("%Y-%m-%d %H:%M:%S.%f")[:23] + utc_now.strftime("%z")
+            print(utc_datetime_str)
             if 'instagram.com/p/' in url:
                 result = await get_post_info(id, url, cl, utc_datetime_str)
             elif 'instagram.com/reel/' in url:
