@@ -65,7 +65,7 @@ async def process_urls(urls):
         cl = Client(proxy=proxy)
         cl.load_settings('session-loop.json')
         for url_data in urls:
-            post_id = url_data['id']
+            id = url_data['id']
             url = url_data['link']
             utc_now = datetime.datetime.now(pytz.utc)
             ist_timezone = pytz.timezone('Asia/Kolkata')
@@ -79,9 +79,9 @@ async def process_urls(urls):
               utc_offset_sign = '+'
             timestamp_utc = ist_time.strftime("%Y-%m-%d %H:%M:%S ") + f"{utc_offset_sign}{abs(offset_hours):02d}:{abs(offset_minutes):02d}"
             if 'instagram.com/p/' in url:
-                result = await get_post_info(post_id, url, cl, timestamp_utc)
+                result = await get_post_info(id, url, cl, timestamp_utc)
             elif 'instagram.com/reel/' in url:
-                result = await get_reel_info(post_id, url, cl, timestamp_utc)
+                result = await get_reel_info(id, url, cl, timestamp_utc)
             else:
                 result = {
                     'success': False,
@@ -97,7 +97,7 @@ async def process_urls(urls):
         })
     return results
 
-async def get_post_info(post_id, post_url, cl, timestamp):
+async def get_post_info(id, post_url, cl, timestamp):
     try:
         if not post_url.startswith('https://www.instagram.com'):
             response = {
@@ -163,9 +163,9 @@ async def get_post_info(post_id, post_url, cl, timestamp):
                 'success': True,
                 'message': 'Post data retrieved successfully',
                 'post_info': {
-                    'likes_count': likes_count,
-                    'comments_count': comments_count,
-                    'view_count': view_count,
+                    'likes': likes_count,
+                    'coments': comments_count,
+                    'views': view_count,
                     'caption_text': caption_text,
                     'mentions': mentions,
                     'hashtags': hashtags,
@@ -174,7 +174,7 @@ async def get_post_info(post_id, post_url, cl, timestamp):
                     'brand_name_user': brand_name_user_post
                 },
                 'engagement_rate': round(engagement_rate_post, 2),
-                'PostID': post_id,
+                'postId': id,
                 'timestamp': timestamp
             }
             return response
@@ -203,7 +203,7 @@ async def get_post_info(post_id, post_url, cl, timestamp):
             }
             return response
 
-async def get_reel_info(post_id, reel_url, cl, timestamp):
+async def get_reel_info(id, reel_url, cl, timestamp):
     try:
         if not reel_url.startswith('https://www.instagram.com'):
             response = {
@@ -269,9 +269,9 @@ async def get_reel_info(post_id, reel_url, cl, timestamp):
                 'success': True,
                 'message': 'Reel data retrieved successfully',
                 'reel_info': {
-                    'likes_count': likes_count,
-                    'comments_count': comments_count,
-                    'view_count': play_count,
+                    'likes': likes_count,
+                    'coments': comments_count,
+                    'views': play_count,
                     'caption_text': caption_text,
                     'mentions': mentions,
                     'hashtags': hashtags,
@@ -280,7 +280,7 @@ async def get_reel_info(post_id, reel_url, cl, timestamp):
                     'brand_name_user': brand_name_user_reel
                 },
                 'engagement_rate': round(engagement_rate_reel, 2),
-                'PostID': post_id,
+                'postId': id,
                 'timestamp': timestamp
             }
             return response
@@ -313,7 +313,6 @@ async def get_reel_info(post_id, reel_url, cl, timestamp):
 def get_media_info_route():
     try:
         data = request.json
-        print(data)
         if len(data) > 30:
             return jsonify({'success': False, 'message': 'URL list exceeds processing limit'})
         results = asyncio.run(process_urls(data))
