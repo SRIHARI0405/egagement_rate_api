@@ -1,11 +1,13 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+import datetime
 import json
+import pytz
 import shutil
+from pyngrok import ngrok
 from instagrapi import Client
 import asyncio
 import time
 import re
-import queue  
 
 INSTAGRAM_USERNAME = 'loopstar154'
 INSTAGRAM_PASSWORD = 'Starbuzz1234567@'
@@ -14,7 +16,7 @@ app = Flask(__name__)
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 
-url_queue = asyncio.Queue(maxsize=10)
+url_queue = asyncio.Queue(maxsize=30)
 
 def fetch_last_n_days_posts(cl, username, n):
     user_id = cl.user_id_from_username(username)
@@ -36,7 +38,7 @@ def brand_name_user(media_data):
         usernames.append(item.user.username)
     return usernames
 
-def calculate_engagement_rate(cl,reel_Data, posts):
+def calculate_engagement_rate(cl, reel_Data, posts):
     if not posts:
         return 0
     visible_likes_comments = sum(post.like_count + post.comment_count for post in posts if post.like_count is not None and post.comment_count is not None)
@@ -58,17 +60,29 @@ def calculate_engagement_rate_reels(cl, reel_Data):
     engagement_rate = (visible_likes_comments_reel/1)/user_info.follower_count * 100
     return engagement_rate
 
-async def process_urls():
+async def process_urls(urls):
     results = []
     try:
         cl = Client(proxy=proxy)
         cl.load_settings('session-loop.json')
-        while not url_queue.empty():
-            url = await url_queue.get()
+        for url_data in urls:
+            post_id = url_data['postID']
+            url = url_data['link']
+            utc_now = datetime.datetime.now(pytz.utc)
+            ist_timezone = pytz.timezone('Asia/Kolkata')
+            ist_time = utc_now.astimezone(ist_timezone)
+            utc_offset = ist_time.utcoffset()
+            offset_hours = utc_offset.seconds // 3600
+            offset_minutes = (utc_offset.seconds // 60) % 60
+            if utc_offset.days < 0:
+              utc_offset_sign = '-'
+            else:
+              utc_offset_sign = '+'
+            timestamp_utc = ist_time.strftime("%Y-%m-%d %H:%M:%S ") + f"{utc_offset_sign}{abs(offset_hours):02d}:{abs(offset_minutes):02d}"
             if 'instagram.com/p/' in url:
-                result = await get_post_info(url, cl)
+                result = await get_post_info(post_id, url, cl, timestamp_utc)
             elif 'instagram.com/reel/' in url:
-                result = await get_reel_info(url, cl)
+                result = await get_reel_info(post_id, url, cl, timestamp_utc)
             else:
                 result = {
                     'success': False,
@@ -76,7 +90,6 @@ async def process_urls():
                     'data': None
                 }
             results.append(result)
-            url_queue.task_done()  
     except Exception as e:
         results.append({
             'success': False,
@@ -85,7 +98,7 @@ async def process_urls():
         })
     return results
 
-async def get_post_info(post_url, cl):
+async def get_post_info(post_id, post_url, cl, timestamp):
     try:
         if not post_url.startswith('https://www.instagram.com'):
             response = {
@@ -95,7 +108,7 @@ async def get_post_info(post_url, cl):
             }
             return response
 
-        post_id_match = re.search(r'/p/([A-Za-z0-9_-]+)', post_url)
+        post_id_match = re.search(r'/p/([A-Za-z0-9_-]+)',  post_url.split('?')[0])
         if post_id_match:
             post_id = post_id_match.group(1)
             try:
@@ -161,7 +174,9 @@ async def get_post_info(post_url, cl):
                     'brand_name_usertag': brand_name_usertag_post,
                     'brand_name_user': brand_name_user_post
                 },
-                'engagement_rate': round(engagement_rate_post, 2)
+                'engagement_rate': round(engagement_rate_post, 2),
+                'PostID': post_id,
+                'timestamp': timestamp
             }
             return response
     except Exception as e:
@@ -189,7 +204,7 @@ async def get_post_info(post_url, cl):
             }
             return response
 
-async def get_reel_info(reel_url, cl):
+async def get_reel_info(post_id, reel_url, cl, timestamp):
     try:
         if not reel_url.startswith('https://www.instagram.com'):
             response = {
@@ -265,7 +280,9 @@ async def get_reel_info(reel_url, cl):
                     'brand_name_usertag': brand_name_usertag_reel,
                     'brand_name_user': brand_name_user_reel
                 },
-                'engagement_rate': round(engagement_rate_reel, 2)
+                'engagement_rate': round(engagement_rate_reel, 2),
+                'PostID': post_id,
+                'timestamp': timestamp
             }
             return response
     except Exception as e:
@@ -293,16 +310,18 @@ async def get_reel_info(reel_url, cl):
             }
             return response
 
-@app.route('/media_info/<path:urls>')
-def get_media_info_route(urls):
-    urls_list = urls.split(',')
-    for url in urls_list:
-        if url_queue.qsize() < 10:
-            url_queue.put_nowait(url)
-        else:
-            return jsonify({'success': False, 'message': 'URL processing limit exceeded'})
-    results = asyncio.run(process_urls())
-    return jsonify(results)
+@app.route('/media_info', methods=['POST'])
+def get_media_info_route():
+    try:
+        data = request.json
+        print(data)
+        urls_list = data.get('urls', [])
+        if len(urls_list) > 30:
+            return jsonify({'success': False, 'message': 'URL list exceeds processing limit'})
+        results = asyncio.run(process_urls(urls_list))
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 if __name__ == '__main__':
     try:
