@@ -3,7 +3,6 @@ import datetime
 import json
 import pytz
 import shutil
-from pyngrok import ngrok
 from instagrapi import Client
 import asyncio
 import time
@@ -66,7 +65,7 @@ async def process_urls(urls):
         cl = Client(proxy=proxy)
         cl.load_settings('session-loop.json')
         for url_data in urls:
-            post_id = url_data['postID']
+            post_id = url_data['id']
             url = url_data['link']
             utc_now = datetime.datetime.now(pytz.utc)
             ist_timezone = pytz.timezone('Asia/Kolkata')
