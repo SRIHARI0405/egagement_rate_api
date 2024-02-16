@@ -68,20 +68,11 @@ async def process_urls(urls):
             id = url_data['id']
             url = url_data['link']
             utc_now = datetime.datetime.now(pytz.utc)
-            ist_timezone = pytz.timezone('Asia/Kolkata')
-            ist_time = utc_now.astimezone(ist_timezone)
-            utc_offset = ist_time.utcoffset()
-            offset_hours = utc_offset.seconds // 3600
-            offset_minutes = (utc_offset.seconds // 60) % 60
-            if utc_offset.days < 0:
-              utc_offset_sign = '-'
-            else:
-              utc_offset_sign = '+'
-            timestamp_utc = ist_time.strftime("%Y-%m-%d %H:%M:%S ") + f"{utc_offset_sign}{abs(offset_hours):02d}:{abs(offset_minutes):02d}"
+            utc_datetime_str = utc_now.strftime("%Y-%m-%d %H:%M:%S.%f")[:23] + utc_now.strftime("%z")
             if 'instagram.com/p/' in url:
-                result = await get_post_info(id, url, cl, timestamp_utc)
+                result = await get_post_info(id, url, cl, utc_datetime_str)
             elif 'instagram.com/reel/' in url:
-                result = await get_reel_info(id, url, cl, timestamp_utc)
+                result = await get_reel_info(id, url, cl, utc_datetime_str)
             else:
                 result = {
                     'success': False,
@@ -160,8 +151,6 @@ async def get_post_info(id, post_url, cl, timestamp):
             hashtags = re.findall(r'#\w+', caption_text)
 
             response = {
-                'success': True,
-                'message': 'Post data retrieved successfully',
                 'post_info': {
                     'likes': likes_count,
                     'coments': comments_count,
@@ -266,8 +255,6 @@ async def get_reel_info(id, reel_url, cl, timestamp):
             hashtags = re.findall(r'#\w+', caption_text)
 
             response = {
-                'success': True,
-                'message': 'Reel data retrieved successfully',
                 'reel_info': {
                     'likes': likes_count,
                     'coments': comments_count,
