@@ -314,7 +314,7 @@ def get_media_info_route():
     try:
         data = request.json
         print(data)
-        urls_list = data.get('link', [])
+        urls_list = data.get('data', [])
         if len(urls_list) > 30:
             return jsonify({'success': False, 'message': 'URL list exceeds processing limit'})
         results = asyncio.run(process_urls(urls_list))
