@@ -102,14 +102,6 @@ async def get_post_info(id, post_url, cl, timestamp):
         if post_id_match:
             post_id = post_id_match.group(1)
             try:
-                user_info = cl.user_info(cl.user_id)
-                if user_info.is_private:
-                    response = {
-                        'success': True,
-                        'message': 'User profile is private',
-                        'data': None
-                    }
-                    return response
                 post_data_pk = cl.media_pk_from_code(post_id)
             except Exception as e:
                 cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
@@ -130,6 +122,7 @@ async def get_post_info(id, post_url, cl, timestamp):
                 return response
 
             post_data = cl.media_info(post_data_pk, use_cache=False)
+            await asyncio.sleep(5) 
             if not post_data:
                 return {
                     'success': False,
@@ -221,14 +214,6 @@ async def get_reel_info(id, reel_url, cl, timestamp):
         if reel_id_match:
             reel_id = reel_id_match.group(1)
             try:
-                user_info = cl.user_info(cl.user_id)
-                if user_info.is_private:
-                    response = {
-                        'success': True,
-                        'message': 'User profile is private',
-                        'data': None
-                    }
-                    return response
                 reel_data_pk = cl.media_pk_from_code(reel_id)
             except Exception as e:
                 print("hello")
