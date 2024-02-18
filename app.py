@@ -141,17 +141,17 @@ async def get_post_info(id, post_url, cl, timestamp):
             comments_count = post_data.comment_count
             play_count = post_data.play_count  
             if play_count is None:
-                await asyncio.sleep(10) 
+                await asyncio.sleep(8) 
                 reel_data = cl.media_info(post_data_pk, use_cache=False)
                 play_count = reel_data.play_count 
 
                 if play_count is None:
-                    await asyncio.sleep(10) 
+                    await asyncio.sleep(8) 
                     reel_data = cl.media_info(post_data_pk, use_cache=False)
                     play_count = reel_data.play_count 
 
                     if play_count is None:
-                        await asyncio.sleep(10) 
+                        await asyncio.sleep(8) 
                         reel_data = cl.media_info(post_data_pk, use_cache=False)
                         play_count = reel_data.play_count 
 
@@ -261,17 +261,17 @@ async def get_reel_info(id, reel_url, cl, timestamp):
             play_count = reel_data.play_count
 
             if play_count is None:
-                await asyncio.sleep(10) 
+                await asyncio.sleep(8) 
                 reel_data = cl.media_info(reel_data_pk, use_cache=False)
                 play_count = reel_data.play_count 
 
                 if play_count is None:
-                    await asyncio.sleep(10) 
+                    await asyncio.sleep(8) 
                     reel_data = cl.media_info(reel_data_pk, use_cache=False)
                     play_count = reel_data.play_count 
 
                     if play_count is None:
-                        await asyncio.sleep(10) 
+                        await asyncio.sleep(8) 
                         reel_data = cl.media_info(reel_data_pk, use_cache=False)
                         play_count = reel_data.play_count 
 
