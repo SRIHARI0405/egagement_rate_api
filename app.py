@@ -69,7 +69,6 @@ async def process_urls(urls):
             url = url_data['link']
             utc_now = datetime.datetime.now(pytz.utc)
             utc_datetime_str = utc_now.strftime("%Y-%m-%d %H:%M:%S.%f")[:23] + utc_now.strftime("%z")
-            print(utc_datetime_str)
             if 'instagram.com/p/' in url:
                 result = await get_post_info(id, url, cl, utc_datetime_str)
             elif 'instagram.com/reel/' in url:
@@ -140,7 +139,22 @@ async def get_post_info(id, post_url, cl, timestamp):
 
             likes_count = post_data.like_count
             comments_count = post_data.comment_count
-            view_count = post_data.play_count if post_data.play_count is not None and post_data.play_count != 0 else post_data.view_count
+            play_count = post_data.play_count  
+            if play_count is None:
+                await asyncio.sleep(10) 
+                reel_data = cl.media_info(post_data_pk, use_cache=False)
+                play_count = reel_data.play_count 
+
+                if play_count is None:
+                    await asyncio.sleep(10) 
+                    reel_data = cl.media_info(post_data_pk, use_cache=False)
+                    play_count = reel_data.play_count 
+
+                    if play_count is None:
+                        await asyncio.sleep(10) 
+                        reel_data = cl.media_info(post_data_pk, use_cache=False)
+                        play_count = reel_data.play_count 
+
             caption_text = post_data.caption_text
             brand_name_usertag_post = brand_name_usertag([post_data])
             brand_name_user_post = brand_name_user([post_data])
@@ -155,7 +169,7 @@ async def get_post_info(id, post_url, cl, timestamp):
                 'post_info': {
                     'likes': likes_count,
                     'coments': comments_count,
-                    'views': view_count,
+                    'views': play_count,
                     'caption_text': caption_text,
                     'mentions': mentions,
                     'hashtags': hashtags,
@@ -245,6 +259,22 @@ async def get_reel_info(id, reel_url, cl, timestamp):
             likes_count = reel_data.like_count
             comments_count = reel_data.comment_count
             play_count = reel_data.play_count
+
+            if play_count is None:
+                await asyncio.sleep(10) 
+                reel_data = cl.media_info(reel_data_pk, use_cache=False)
+                play_count = reel_data.play_count 
+
+                if play_count is None:
+                    await asyncio.sleep(10) 
+                    reel_data = cl.media_info(reel_data_pk, use_cache=False)
+                    play_count = reel_data.play_count 
+
+                    if play_count is None:
+                        await asyncio.sleep(10) 
+                        reel_data = cl.media_info(reel_data_pk, use_cache=False)
+                        play_count = reel_data.play_count 
+
             caption_text = reel_data.caption_text
             brand_name_usertag_reel = brand_name_usertag([reel_data])
             brand_name_user_reel = brand_name_user([reel_data])
