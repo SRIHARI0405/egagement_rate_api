@@ -8,8 +8,8 @@ import asyncio
 import time
 import re
 
-INSTAGRAM_USERNAME = 'starbuzz286'
-INSTAGRAM_PASSWORD = 'Starbuzz123@'
+INSTAGRAM_USERNAME = 'loopstar154'
+INSTAGRAM_PASSWORD = 'Starbuzz12345678@'
 
 app = Flask(__name__)
 
