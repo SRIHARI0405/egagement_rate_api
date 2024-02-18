@@ -216,16 +216,12 @@ async def get_reel_info(id, reel_url, cl, timestamp):
             try:
                 reel_data_pk = cl.media_pk_from_code(reel_id)
             except Exception as e:
-                print("hello")
                 cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-                print("done")
                 with open('session-loop.json', 'r') as file:
                     data = json.load(file)
-                    print(cl.authorization_data)
                     data['authorization_data'] = cl.authorization_data
                 with open('session-loop1.json', 'w') as file:
                     json.dump(data, file, indent=4)
-                    print(cl.authorization_data)
                 shutil.copyfile('session-loop1.json', 'session-loop.json')
                 reel_data_pk = cl.media_pk_from_code(reel_id)
 
