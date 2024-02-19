@@ -1,12 +1,14 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 import datetime
 import json
 import pytz
 import shutil
 from instagrapi import Client
 import asyncio
+import threading 
 import time
 import re
+import requests
 
 INSTAGRAM_USERNAME = 'loopstar154'
 INSTAGRAM_PASSWORD = 'Starbuzz12345678@'
@@ -67,12 +69,14 @@ async def process_urls(urls):
         for url_data in urls:
             id = url_data['id']
             url = url_data['link']
+            campaign_Id = url_data['campaignId']
+            influencer_Id = url_data['influencerId']
             utc_now = datetime.datetime.now(pytz.utc)
             utc_datetime_str = utc_now.strftime("%Y-%m-%d %H:%M:%S.%f")[:23] + utc_now.strftime("%z")
             if 'instagram.com/p/' in url:
-                result = await get_post_info(id, url, cl, utc_datetime_str)
+                result = await get_post_info(id, url, cl, utc_datetime_str, campaign_Id, influencer_Id)
             elif 'instagram.com/reel/' in url:
-                result = await get_reel_info(id, url, cl, utc_datetime_str)
+                result = await get_reel_info(id, url, cl, utc_datetime_str, campaign_Id, influencer_Id)
             else:
                 result = {
                     'success': False,
@@ -88,7 +92,7 @@ async def process_urls(urls):
         })
     return results
 
-async def get_post_info(id, post_url, cl, timestamp):
+async def get_post_info(id, post_url, cl, timestamp, campaign_Id, influencer_Id):
     try:
         if not post_url.startswith('https://www.instagram.com'):
             response = {
@@ -157,19 +161,12 @@ async def get_post_info(id, post_url, cl, timestamp):
             engagement_rate_post_url = calculate_engagement_rate_reels(cl, post_data)
             mentions = re.findall(r'@\w+', caption_text)
             hashtags = re.findall(r'#\w+', caption_text)
-
             response = {
-                'post_info': {
-                    'likes': likes_count,
-                    'coments': comments_count,
-                    'views': play_count,
-                    'caption_text': caption_text,
-                    'mentions': mentions,
-                    'hashtags': hashtags,
-                    'engagement_rate_post': round(engagement_rate_post_url, 2),
-                    'brand_name_usertag': brand_name_usertag_post,
-                    'brand_name_user': brand_name_user_post
-                },
+                'likes': likes_count,
+                'comments': comments_count,
+                'views': play_count,
+                'campaign_Id': campaign_Id,
+                'influencer_Id': influencer_Id,
                 'engagement_rate': round(engagement_rate_post, 2),
                 'postId': id,
                 'timestamp': timestamp
@@ -200,7 +197,7 @@ async def get_post_info(id, post_url, cl, timestamp):
             }
             return response
 
-async def get_reel_info(id, reel_url, cl, timestamp):
+async def get_reel_info(id, reel_url, cl, timestamp, campaign_Id, influencer_Id):
     try:
         if not reel_url.startswith('https://www.instagram.com'):
             response = {
@@ -271,17 +268,11 @@ async def get_reel_info(id, reel_url, cl, timestamp):
             hashtags = re.findall(r'#\w+', caption_text)
 
             response = {
-                'reel_info': {
-                    'likes': likes_count,
-                    'coments': comments_count,
-                    'views': play_count,
-                    'caption_text': caption_text,
-                    'mentions': mentions,
-                    'hashtags': hashtags,
-                    'engagement_rate_reel': round(engagement_rate_reel_url, 2),
-                    'brand_name_usertag': brand_name_usertag_reel,
-                    'brand_name_user': brand_name_user_reel
-                },
+                'likes': likes_count,
+                'comments': comments_count,
+                'views': play_count,
+                'campaign_Id': campaign_Id,
+                'influencer_Id': influencer_Id,
                 'engagement_rate': round(engagement_rate_reel, 2),
                 'postId': id,
                 'timestamp': timestamp
@@ -312,14 +303,63 @@ async def get_reel_info(id, reel_url, cl, timestamp):
             }
             return response
 
+def process_and_send_results_sync(data):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(process_and_send_results(data))
+
+async def process_and_send_results(data):
+    try:
+        results = await process_urls(data)
+        for result in results:
+            postId = result['postId']
+            likes = result['likes']
+            comment = result['comments']  
+            view = result['views']
+            campaign_Id = result['campaign_Id']
+            influencer_Id = result['influencer_Id']
+            engagement_rate = result['engagement_rate']
+            timestamp = result['timestamp']
+            url = f'https://aa0e-183-82-41-50.ngrok-free.app/api/v3/post/add-metric/{postId}'
+            body = {
+                "timestamp": timestamp,
+                "influencerId": influencer_Id,
+                "likes": likes,
+                "comments": comment,
+                "postId": postId,
+                "campaignId": campaign_Id,
+                "views": view,
+                "engagement_rate": engagement_rate,
+                "fetch_status": True,  
+                "error_message": "Data received successfully"
+            }
+            try:
+              response = requests.post(url, json=body)
+            except Exception as e:
+              body = {
+                  "data": None,
+                  "fetch_status": False,  
+                  "error_message": str(e)  
+              }
+              response = requests.post(url, json=body)
+    except Exception as e:
+        body = {
+            "data": None,
+            "fetch_status": False,  
+            "error_message": str(e)  
+        }
+        response = requests.post(url, json=body)
+
 @app.route('/media_info', methods=['POST'])
 def get_media_info_route():
     try:
         data = request.json
-        if len(data) > 30:
-            return jsonify({'success': False, 'message': 'URL list exceeds processing limit'})
-        results = asyncio.run(process_urls(data))
-        return jsonify(results)
+        if data:
+            threading.Thread(target=process_and_send_results_sync, args=(data,)).start()
+            return make_response(jsonify({'success': True, 'message': 'Request Received and Processing the Request','data': ''}), 202)
+        else:
+            return make_response(jsonify({'success': True, 'message': 'No data provided', 'data':'' }), 400)
+
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
