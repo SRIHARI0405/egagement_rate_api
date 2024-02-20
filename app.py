@@ -5,7 +5,7 @@ import pytz
 import shutil
 from instagrapi import Client
 import asyncio
-import threading 
+import threading
 import time
 import re
 import requests
@@ -53,7 +53,7 @@ def calculate_engagement_rate(cl, reel_Data, posts):
 def calculate_engagement_rate_reels(cl, reel_Data):
     if not reel_Data:
         return 0
-    visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count 
+    visible_likes_comments_reel = reel_Data.like_count + reel_Data.comment_count
     if visible_likes_comments_reel == 0:
         return 0
     reel_username = reel_Data.user.username
@@ -126,7 +126,7 @@ async def get_post_info(id, post_url, cl, timestamp, campaign_Id, influencer_Id)
                 return response
 
             post_data = cl.media_info(post_data_pk, use_cache=False)
-            await asyncio.sleep(5) 
+            await asyncio.sleep(5)
             if not post_data:
                 return {
                     'success': False,
@@ -136,38 +136,35 @@ async def get_post_info(id, post_url, cl, timestamp, campaign_Id, influencer_Id)
 
             likes_count = post_data.like_count
             comments_count = post_data.comment_count
-            play_count = post_data.play_count  
+            play_count = post_data.play_count
             if play_count is None:
-                await asyncio.sleep(8) 
+                await asyncio.sleep(8)
                 reel_data = cl.media_info(post_data_pk, use_cache=False)
-                play_count = reel_data.play_count 
+                play_count = reel_data.play_count
 
                 if play_count is None:
-                    await asyncio.sleep(8) 
+                    await asyncio.sleep(8)
                     reel_data = cl.media_info(post_data_pk, use_cache=False)
-                    play_count = reel_data.play_count 
+                    play_count = reel_data.play_count
 
                     if play_count is None:
-                        await asyncio.sleep(8) 
+                        await asyncio.sleep(8)
                         reel_data = cl.media_info(post_data_pk, use_cache=False)
-                        play_count = reel_data.play_count 
+                        play_count = reel_data.play_count
 
-            caption_text = post_data.caption_text
-            brand_name_usertag_post = brand_name_usertag([post_data])
-            brand_name_user_post = brand_name_user([post_data])
             post_username = post_data.user.username
-            post_data1 = fetch_last_n_days_posts(cl, post_username, n=18)
+            post_data1 = fetch_last_n_days_posts(cl, post_username, n=20)
             engagement_rate_post = calculate_engagement_rate(cl, post_data, post_data1)
             engagement_rate_post_url = calculate_engagement_rate_reels(cl, post_data)
-            mentions = re.findall(r'@\w+', caption_text)
-            hashtags = re.findall(r'#\w+', caption_text)
+
             response = {
                 'likes': likes_count,
                 'comments': comments_count,
                 'views': play_count,
                 'campaign_Id': campaign_Id,
                 'influencer_Id': influencer_Id,
-                'engagement_rate': round(engagement_rate_post, 2),
+                'engagement_rate': round(engagement_rate_post_url, 2),
+                'influencer_engagement_rate': round(engagement_rate_post, 2),
                 'postId': id,
                 'timestamp': timestamp
             }
@@ -243,29 +240,24 @@ async def get_reel_info(id, reel_url, cl, timestamp, campaign_Id, influencer_Id)
             play_count = reel_data.play_count
 
             if play_count is None:
-                await asyncio.sleep(8) 
+                await asyncio.sleep(8)
                 reel_data = cl.media_info(reel_data_pk, use_cache=False)
-                play_count = reel_data.play_count 
+                play_count = reel_data.play_count
 
                 if play_count is None:
-                    await asyncio.sleep(8) 
+                    await asyncio.sleep(8)
                     reel_data = cl.media_info(reel_data_pk, use_cache=False)
-                    play_count = reel_data.play_count 
+                    play_count = reel_data.play_count
 
                     if play_count is None:
-                        await asyncio.sleep(8) 
+                        await asyncio.sleep(8)
                         reel_data = cl.media_info(reel_data_pk, use_cache=False)
-                        play_count = reel_data.play_count 
+                        play_count = reel_data.play_count
 
-            caption_text = reel_data.caption_text
-            brand_name_usertag_reel = brand_name_usertag([reel_data])
-            brand_name_user_reel = brand_name_user([reel_data])
             reel_username = reel_data.user.username
-            reels_data1 = fetch_last_n_days_posts(cl, reel_username, n=18)
+            reels_data1 = fetch_last_n_days_posts(cl, reel_username, n=20)
             engagement_rate_reel = calculate_engagement_rate(cl, reel_data, reels_data1)
             engagement_rate_reel_url = calculate_engagement_rate_reels(cl, reel_data)
-            mentions = re.findall(r'@\w+', caption_text)
-            hashtags = re.findall(r'#\w+', caption_text)
 
             response = {
                 'likes': likes_count,
@@ -273,7 +265,8 @@ async def get_reel_info(id, reel_url, cl, timestamp, campaign_Id, influencer_Id)
                 'views': play_count,
                 'campaign_Id': campaign_Id,
                 'influencer_Id': influencer_Id,
-                'engagement_rate': round(engagement_rate_reel, 2),
+                'engagement_rate': round(engagement_rate_reel_url, 2),
+                'influencer_engagement_rate': round(engagement_rate_reel, 2),
                 'postId': id,
                 'timestamp': timestamp
             }
@@ -314,13 +307,14 @@ async def process_and_send_results(data):
         for result in results:
             postId = result['postId']
             likes = result['likes']
-            comment = result['comments']  
+            comment = result['comments']
             view = result['views']
             campaign_Id = result['campaign_Id']
             influencer_Id = result['influencer_Id']
             engagement_rate = result['engagement_rate']
+            influencer_engagement_rate = result['influencer_engagement_rate']
             timestamp = result['timestamp']
-            url = f'https://aa0e-183-82-41-50.ngrok-free.app/api/v3/post/add-metric/{postId}'
+            url = f'https://app.starbuzz.tech/api/v3/post/add-metric/{postId}'
             body = {
                 "timestamp": timestamp,
                 "influencerId": influencer_Id,
@@ -330,7 +324,8 @@ async def process_and_send_results(data):
                 "campaignId": campaign_Id,
                 "views": view,
                 "engagement_rate": engagement_rate,
-                "fetch_status": True,  
+                "influencer_engagement_rate": influencer_engagement_rate,
+                "fetch_status": True,
                 "error_message": "Data received successfully"
             }
             try:
@@ -338,15 +333,15 @@ async def process_and_send_results(data):
             except Exception as e:
               body = {
                   "data": None,
-                  "fetch_status": False,  
-                  "error_message": str(e)  
+                  "fetch_status": False,
+                  "error_message": str(e)
               }
               response = requests.post(url, json=body)
     except Exception as e:
         body = {
             "data": None,
-            "fetch_status": False,  
-            "error_message": str(e)  
+            "fetch_status": False,
+            "error_message": str(e)
         }
         response = requests.post(url, json=body)
 
