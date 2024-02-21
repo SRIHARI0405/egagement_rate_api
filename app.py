@@ -314,7 +314,7 @@ async def process_and_send_results(data):
             engagement_rate = result['engagement_rate']
             influencer_engagement_rate = result['influencer_engagement_rate']
             timestamp = result['timestamp']
-            url = f'https://app.starbuzz.tech/api/v3/post/add-metric/{postId}'
+            url = f'https://nodev2.starbuzz.ai/api/v3/post/add-metric/{postId}'
             body = {
                 "timestamp": timestamp,
                 "influencerId": influencer_Id,
